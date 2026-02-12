@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import BackButton from "../components/BackButton";
 import { createClient } from "../lib/supabase/client";
 
 export default function ProtectedPage() {
@@ -42,6 +43,7 @@ export default function ProtectedPage() {
 
   return (
     <main style={{ padding: 24 }}>
+      <BackButton />
       <h1>Protected Page</h1>
       <p>Welcome{email ? `, ${email}` : ""}!</p>
       <button

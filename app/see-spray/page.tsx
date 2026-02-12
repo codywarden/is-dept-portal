@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import BackButton from "../components/BackButton";
 import { createClient } from "../lib/supabase/client";
 
 type Light = "green" | "yellow" | "red";
@@ -177,6 +178,7 @@ export default function SeeSprayDashboard() {
   // -----------------------------
   return (
     <main style={{ padding: 24 }}>
+      <BackButton />
       <h1 style={{ fontSize: 28, fontWeight: 800 }}>See & Spray Dashboard</h1>
 
       {/* Top Summary */}

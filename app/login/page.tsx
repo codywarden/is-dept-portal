@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import BackButton from "../components/BackButton";
 import { createClient } from "../lib/supabase/client";
 
 export default function LoginPage() {
@@ -27,7 +28,9 @@ export default function LoginPage() {
 
     if (error) return setMsg(error.message);
 
-    router.push("/sprayers");
+    router.push("/dashboard");
+    router.refresh();
+
     router.refresh(); // helps sync auth state
   }
 

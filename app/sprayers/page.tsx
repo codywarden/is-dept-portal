@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import BackButton from "../components/BackButton";
 import { createClient } from "../lib/supabase/client";
 
 type Sprayer = {
@@ -53,6 +54,7 @@ export default function SprayersPage() {
 
   return (
     <main style={{ maxWidth: 900, margin: "40px auto", padding: 16 }}>
+      <BackButton />
       <h1 style={{ fontSize: 26, fontWeight: 700 }}>Sprayers</h1>
 
       {error && <p style={{ color: "crimson" }}>{error}</p>}
