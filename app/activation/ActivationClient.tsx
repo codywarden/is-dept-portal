@@ -1,11 +1,11 @@
 "use client";
 
-import BackButton from "../components/BackButton";
 
-export default function ActivationClient() {
+type Role = "admin" | "verifier" | "viewer";
+
+export default function ActivationClient({ role }: { role: Role }) {
   return (
     <div style={{ minHeight: "100vh", background: "#d7d9cc", padding: 32, color: "#000" }}>
-      <BackButton />
       <header style={{ marginBottom: 18 }}>
         <h1 style={{ fontSize: 30, fontWeight: 900, color: "#367C2B" }}>
           Activation
@@ -28,20 +28,37 @@ export default function ActivationClient() {
           description="View parsed cost account subscriptions by customer."
         />
         <Card
-          title="Sold To (coming soon)"
-          description="Upload sold-to PDFs (future)."
-          disabled
+          title="Sold To"
+          href="/activation/sold-upload"
+          description="View sold-to data for activation reconciliation."
         />
         <Card
           title="Upload Data"
           href="/activation/upload"
-          description="Upload subscription PDFs (new or old style)."
+          description="Upload subscription cost PDFs and sold-to PDFs/CSVs."
         />
         <Card
-          title="Reconcile (coming soon)"
-          description="Match cost vs sold-to and show red/green status."
-          disabled
+          title="Reconcile"
+          href="/activation/reconcile"
+          description="Review Reconclied vs Not Reconclied status in red/green."
         />
+        <Card
+          title="Location Summary"
+          href="/activation/location-summary"
+          description="View bar graphs of cost, retail, and margin by location."
+        />
+        <Card
+          title="Business System Numbers"
+          href="/activation/check"
+          description="Enter and compare cost and sold account totals from the business system by location."
+        />
+        {role === "admin" && (
+          <Card
+            title="Change Location"
+            href="/activation/change-location"
+            description="Track and manage location changes for cost items."
+          />
+        )}
       </section>
     </div>
   );

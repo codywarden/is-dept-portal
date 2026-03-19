@@ -2,12 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import BackButton from "../components/BackButton";
 import { createClient } from "../lib/supabase/client";
 
 type Role = "admin" | "verifier" | "viewer";
 
-type ProfileInfo = { email: string; firstName: string; lastName: string; location: string };
+type ProfileInfo = {
+  email: string;
+  firstName: string;
+  lastName: string;
+  locations: string[];
+  pagePermissions: Record<string, boolean> | null;
+};
 
 export default function DashboardClient({
   role,
@@ -41,15 +46,26 @@ export default function DashboardClient({
     };
   }, [router, supabase]);
 
-  const cards = [
-    { title: "Admin", href: "/admin", roles: ["admin"] as Role[] },
-    { title: "See & Spray", href: "/see-spray", roles: ["admin", "verifier", "viewer"] as Role[] },
-    { title: "Sprayers", href: "/sprayers", roles: ["admin", "verifier"] as Role[] },
-    { title: "Activation", href: "/activation", roles: ["admin", "verifier", "viewer"] as Role[] },
-    { title: "Service Agreements", href: "/service-agreements", roles: ["admin", "verifier", "viewer"] as Role[] },
-    { title: "Protected", href: "/protected", roles: ["admin"] as Role[] },
-    { title: "System Test", href: "/test", roles: ["admin"] as Role[] },
+  const allCards = [
+    { title: "Admin", href: "/admin", permKey: "admin", roles: ["admin"] as Role[] },
+    { title: "See & Spray", href: "/see-spray", permKey: "see-spray", roles: ["admin", "verifier", "viewer"] as Role[] },
+    { title: "Sprayers", href: "/sprayers", permKey: "sprayers", roles: ["admin", "verifier"] as Role[] },
+    { title: "Activation", href: "/activation", permKey: "activation", roles: ["admin", "verifier", "viewer"] as Role[] },
+    { title: "Service Agreements", href: "/service-agreements", permKey: "service-agreements", roles: ["admin", "verifier", "viewer"] as Role[] },
+    { title: "Protected", href: "/protected", permKey: null, roles: ["admin"] as Role[] },
+    { title: "System Test", href: "/test", permKey: null, roles: ["admin"] as Role[] },
   ];
+
+  const perms = profile.pagePermissions;
+  const hasAnyPerm = perms && Object.keys(perms).length > 0;
+
+  const cards = allCards.filter((c) => {
+    if (!c.roles.includes(role)) return false;
+    if (role === "admin") return true;
+    // if no permissions configured, fall back to role-based defaults
+    if (!hasAnyPerm || c.permKey === null) return true;
+    return perms[c.permKey] === true;
+  });
 
   if (loading) {
     return (
@@ -72,11 +88,8 @@ export default function DashboardClient({
         <div style={{ marginTop: 10, color: "#111827", fontWeight: 700 }}>
           Welcome{profile.firstName ? `, ${profile.firstName}` : ""}!
         </div>
-        <div style={{ marginTop: 4, color: "#111827", opacity: 0.75 }}>
-          {profile.email}
-        </div>
         <div style={{ marginTop: 4, color: "#111827", opacity: 0.8 }}>
-          Location: <span style={{ fontWeight: 800 }}>{profile.location || "—"}</span>
+          Location: <span style={{ fontWeight: 800 }}>{profile.locations.length > 0 ? profile.locations.join(", ") : "—"}</span>
         </div>
 
 
@@ -93,15 +106,14 @@ export default function DashboardClient({
           gap: 20,
         }}
       >
-        {cards
-          .filter((c) => c.roles.includes(role))
-          .map((c) => (
+        {cards.map((c) => (
             <Card key={c.href} title={c.title} href={c.href} />
           ))}
       </section>
 
       <div style={{ marginTop: 40 }}>
         <button
+          className="btn-secondary"
           onClick={async () => {
             await supabase.auth.signOut();
             router.replace("/login");

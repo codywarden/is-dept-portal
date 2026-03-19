@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from("sa_subscription_cost_items")
-      .select("*, matched_customer:sa_customers(name)")
+      .select("*, matched_customer:sa_customers(name), file:sa_subscription_cost_files(upload_number, original_filename, uploaded_at)")
       .order("created_at", { ascending: false });
 
     if (fileId) query = query.eq("file_id", fileId);

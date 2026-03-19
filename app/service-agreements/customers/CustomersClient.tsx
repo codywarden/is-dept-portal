@@ -1,6 +1,5 @@
 "use client";
 
-import BackButton from "../../components/BackButton";
 import { useEffect, useState } from "react";
 
 type Role = "admin" | "verifier" | "viewer";
@@ -41,7 +40,8 @@ export default function CustomersClient({ role }: { role: Role }) {
         const res = await fetch("/api/service-agreements/customers");
         if (!res.ok) return;
         const { data } = await res.json();
-        setCustomers((data || []).filter((c: any) => c && c.id && c.name));
+        const rows = (data || []) as Customer[];
+        setCustomers(rows.filter((customer) => customer && customer.id && customer.name));
       } catch (err) {
         console.error(err);
       }
@@ -121,7 +121,6 @@ export default function CustomersClient({ role }: { role: Role }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#d7d9cc", padding: 32 }}>
-      <BackButton />
       <header style={{ marginBottom: 18 }}>
         <h1 style={{ fontSize: 30, fontWeight: 900, color: "#367C2B" }}>Customers</h1>
         <p style={{ marginTop: 8, color: "#374151" }}>Customers with service agreements and their level/location.</p>
@@ -159,13 +158,13 @@ export default function CustomersClient({ role }: { role: Role }) {
                 </option>
               ))}
             </select>
-            <select value={level} onChange={(e) => setLevel(e.target.value as any)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", background: "white", color: "#000", fontWeight: 500 }}>
+            <select value={level} onChange={(e) => setLevel(e.target.value as Customer["level"])} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", background: "white", color: "#000", fontWeight: 500 }}>
               <option value="Premium">Premium</option>
               <option value="Remote">Remote</option>
             </select>
           </div>
           <div style={{ marginTop: 8 }}>
-            <button onClick={addCustomer} disabled={loading} style={{ padding: "8px 12px", background: "#367C2B", color: "#FFC72C", borderRadius: 8, border: "2px solid #FFC72C", cursor: loading ? "not-allowed" : "pointer", fontWeight: 700, opacity: loading ? 0.6 : 1 }}>{loading ? "Adding..." : "Add"}</button>
+            <button className="btn-primary" onClick={addCustomer} disabled={loading} style={{ padding: "8px 12px", background: "#367C2B", color: "#FFC72C", borderRadius: 8, border: "2px solid #FFC72C", cursor: loading ? "not-allowed" : "pointer", fontWeight: 700, opacity: loading ? 0.6 : 1 }}>{loading ? "Adding..." : "Add"}</button>
           </div>
         </section>
       )}
@@ -188,7 +187,7 @@ export default function CustomersClient({ role }: { role: Role }) {
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 {role === "admin" && (
-                  <button onClick={() => removeCustomer(c.id)} style={{ background: "transparent", border: "none", color: "#dc2626", cursor: "pointer", fontWeight: 700 }}>Delete</button>
+                  <button className="btn-danger btn-sm" onClick={() => removeCustomer(c.id)}>Delete</button>
                 )}
               </div>
             </div>

@@ -1,6 +1,5 @@
 "use client";
 
-import BackButton from "../../components/BackButton";
 import { useState } from "react";
 
 export default function SettingsClient() {
@@ -9,7 +8,6 @@ export default function SettingsClient() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#d7d9cc", padding: 32 }}>
-      <BackButton />
       <header style={{ marginBottom: 18 }}>
         <h1 style={{ fontSize: 30, fontWeight: 900, color: "#367C2B" }}>
           Service Agreements • Settings
@@ -27,8 +25,8 @@ export default function SettingsClient() {
 
         <div>
           <button
+            className="btn-primary"
             onClick={() => setMsg("Settings saved ✅")}
-            style={{ padding: "8px 12px", background: "#367C2B", color: "#FFC72C", borderRadius: 8, border: "2px solid #FFC72C", cursor: "pointer", fontWeight: 700 }}
           >
             Save
           </button>

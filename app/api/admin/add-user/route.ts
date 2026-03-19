@@ -1,15 +1,23 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseServer } from "@/app/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, firstName, lastName, location, role } =
+    // Auth check — admin only
+    const supabase = await createSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    const { email, password, firstName, lastName, location, locations, role } =
       await req.json();
 
     // Validate required fields
-    if (!email || !password || !firstName || !lastName || !location || !role) {
+    if (!email || !password || !firstName || !lastName || !role) {
       return NextResponse.json(
-        { error: "email, password, firstName, lastName, location and role are required" },
+        { error: "email, password, firstName, lastName and role are required" },
         { status: 400 }
       );
     }
@@ -31,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     if (authError) {
       // If the auth user already exists, try to find their profile by email
-      const msg = (authError as any)?.message ?? String(authError);
+      const msg = authError.message ?? String(authError);
       if (msg.toLowerCase().includes("already") || msg.toLowerCase().includes("exists")) {
         const { data: existingProfiles, error: fetchErr } = await supabaseAdmin
           .from("profiles")
@@ -52,7 +60,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: msg }, { status: 400 });
       }
     } else {
-      userId = (authData as any).user.id;
+      userId = authData.user?.id ?? null;
     }
 
     // Create or update user profile (upsert to avoid unique id conflicts)
@@ -64,7 +72,8 @@ export async function POST(req: NextRequest) {
           email,
           first_name: firstName || null,
           last_name: lastName || null,
-          location: location || null,
+          location: location || (Array.isArray(locations) ? locations[0] : null) || null,
+          locations: Array.isArray(locations) ? locations : (location ? [location] : []),
           role: role || "viewer",
         },
         { onConflict: "id" }
@@ -81,7 +90,8 @@ export async function POST(req: NextRequest) {
         email,
         first_name: firstName,
         last_name: lastName,
-        location,
+        location: location || (Array.isArray(locations) ? locations[0] : null) || null,
+        locations: Array.isArray(locations) ? locations : (location ? [location] : []),
         role,
       },
     });

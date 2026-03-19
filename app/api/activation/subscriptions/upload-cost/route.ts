@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServer } from "../../../../lib/supabase/server";
+import { createSupabaseAdmin } from "../../../../lib/supabase/admin";
 import { PDFParse } from "pdf-parse";
 import path from "path";
 import { pathToFileURL } from "url";
@@ -51,10 +51,56 @@ export async function POST(req: NextRequest) {
     const detectedStyle = style === "auto" ? detectCostPdfStyle(parsed.text) : style;
     const { items } = parseCostPdfPages(parsed.pages, detectedStyle);
 
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    const supabaseAdmin = createSupabaseAdmin();
+
+    const { data: locations } = await supabaseAdmin
+      .from("locations")
+      .select("name");
+
+    const locationNameMap = new Map<string, string>();
+    (locations ?? []).forEach((row) => {
+      const canonical = row.name?.trim();
+      if (!canonical) return;
+      locationNameMap.set(normalizeLocationKey(canonical), canonical);
+    });
+
+    const orderNumbers = Array.from(
+      new Set(
+        items
+          .map((item) => item.order_number?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
     );
+
+    if (orderNumbers.length > 0) {
+      const duplicates = new Set<string>();
+      const chunkSize = 500;
+      for (let i = 0; i < orderNumbers.length; i += chunkSize) {
+        const chunk = orderNumbers.slice(i, i + chunkSize);
+        const { data: existing, error: existingError } = await supabaseAdmin
+          .from("sa_subscription_cost_items")
+          .select("order_number")
+          .in("order_number", chunk);
+
+        if (existingError) {
+          return NextResponse.json({ error: existingError.message }, { status: 400 });
+        }
+
+        (existing ?? []).forEach((row) => {
+          if (row.order_number) duplicates.add(row.order_number);
+        });
+      }
+
+      if (duplicates.size > 0) {
+        return NextResponse.json(
+          {
+            error: "This PDF appears to have already been uploaded (duplicate Order # found).",
+            duplicates: Array.from(duplicates),
+          },
+          { status: 409 },
+        );
+      }
+    }
 
     const storagePath = `cost/${Date.now()}-${file.name}`;
     const uploadRes = await supabaseAdmin.storage
@@ -87,7 +133,11 @@ export async function POST(req: NextRequest) {
     const itemsWithMatch = items.map((item) => {
       const nameForMatch = item.customer_name || item.retail_customer || item.legal_name || item.org_name || "";
       const matchId = matchCustomerId(nameForMatch, normalizedMap, customerList);
-      return { ...item, matched_customer_id: matchId };
+      return {
+        ...item,
+        location: canonicalizeLocation(item.location, locationNameMap),
+        matched_customer_id: matchId,
+      };
     });
 
     const fileInsert = await supabaseAdmin
@@ -110,8 +160,10 @@ export async function POST(req: NextRequest) {
     }
 
     const fileId = fileInsert.data.id as string;
+    const uploadNumber = fileInsert.data.upload_number;
+    const year = new Date().getFullYear();
 
-    const insertRows = itemsWithMatch.map((item) => ({
+    const insertRows = itemsWithMatch.map((item, idx) => ({
       file_id: fileId,
       style: item.style,
       retail_customer: item.retail_customer,
@@ -130,6 +182,7 @@ export async function POST(req: NextRequest) {
       contract_start: item.contract_start,
       contract_end: item.contract_end,
       due_date: item.due_date,
+      item_number: `C-${year}-${uploadNumber ?? 0}-${idx + 1}`,
       raw_text: item.raw_text,
     }));
 
@@ -142,8 +195,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       fileId,
+      uploadNumber: fileInsert.data.upload_number ?? null,
       itemCount: itemsWithMatch.length,
-      matchedCount: itemsWithMatch.filter((i) => i.matched_customer_id).length,
+      reconcliedCount: itemsWithMatch.filter((i) => i.matched_customer_id).length,
       items: itemsWithMatch.map((i) => ({
         customer_name: i.customer_name,
         retail_customer: i.retail_customer,
@@ -165,6 +219,17 @@ export async function POST(req: NextRequest) {
 
 function normalizeName(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function normalizeLocationKey(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function canonicalizeLocation(value: string | null | undefined, locationNameMap: Map<string, string>) {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  const canonical = locationNameMap.get(normalizeLocationKey(raw));
+  return canonical ?? null;
 }
 
 function matchCustomerId(

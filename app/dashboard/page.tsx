@@ -11,7 +11,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, first_name, last_name, email, location")
+    .select("role, first_name, last_name, email, location, locations, page_permissions")
     .eq("id", user.id)
     .single();
 
@@ -24,7 +24,8 @@ return (
       email: profile?.email ?? user.email ?? "",
       firstName: profile?.first_name ?? "",
       lastName: profile?.last_name ?? "",
-      location: profile?.location ?? "",
+      locations: (profile?.locations as string[] | null) ?? (profile?.location ? [profile.location] : []),
+      pagePermissions: (profile?.page_permissions as Record<string, boolean> | null) ?? null,
     }}
   />
 );

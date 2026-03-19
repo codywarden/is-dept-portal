@@ -1,6 +1,5 @@
 "use client";
 
-import BackButton from "../components/BackButton";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -16,7 +15,6 @@ export default function ServiceAgreementsClient({ role }: { role: Role }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#d7d9cc", padding: 32 }}>
-      <BackButton />
       <header style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 style={{ fontSize: 30, fontWeight: 900, color: "#367C2B" }}>
@@ -30,6 +28,7 @@ export default function ServiceAgreementsClient({ role }: { role: Role }) {
         <div style={{ display: "flex", gap: 8 }}>
           {role === "admin" && (
             <button
+              className="btn-secondary"
               onClick={() => router.push("/service-agreements/settings")}
               style={{
                 padding: "8px 12px",

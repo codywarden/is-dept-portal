@@ -5,7 +5,15 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function UploadPage() {
-  await requireUser();
+  const { supabase, user } = await requireUser();
 
-  return <UploadClient />;
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  const role = (profile?.role ?? "viewer") as "admin" | "verifier" | "viewer";
+
+  return <UploadClient role={role} />;
 }

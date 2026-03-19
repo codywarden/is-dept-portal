@@ -14,21 +14,36 @@ type AdminRow = {
   first_name: string | null;
   last_name: string | null;
   location: string | null;
+  locations: string[] | null;
+  page_permissions: Record<string, boolean> | null;
   last_login: string | null;
   created_at?: string | null;
 };
 
+type ProfileRow = Omit<AdminRow, "last_login">;
+
 export default async function UsersPage() {
-  await requireRole(["admin"]);
+  const { user } = await requireRole(["admin"]);
 
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  const { data: currentProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("page_permissions")
+    .eq("id", user.id)
+    .single();
+
+  const currentPerms = (currentProfile?.page_permissions ?? null) as Record<string, boolean> | null;
+  const hasAnyPerm = currentPerms && Object.keys(currentPerms).length > 0;
+  const canAddUser = !hasAnyPerm || currentPerms["admin/users/add"] === true;
+  const canDeleteUser = !hasAnyPerm || currentPerms["admin/users/delete"] === true;
+
   const { data: profiles, error: profilesErr } = await supabaseAdmin
     .from("profiles")
-    .select("id,email,role,first_name,last_name,location,created_at")
+    .select("id,email,role,first_name,last_name,location,locations,page_permissions,created_at")
     .order("created_at", { ascending: false });
 
   if (profilesErr) {
@@ -57,10 +72,10 @@ export default async function UsersPage() {
     lastLoginById.set(u.id, u.last_sign_in_at ?? null);
   }
 
-  const rows: AdminRow[] = (profiles ?? []).map((p: AdminRow) => ({
+  const rows: AdminRow[] = ((profiles ?? []) as ProfileRow[]).map((p) => ({
     ...p,
     last_login: lastLoginById.get(p.id) ?? null,
   }));
 
-  return <UsersClient initialUsers={rows} />;
+  return <UsersClient initialUsers={rows} canAddUser={canAddUser} canDeleteUser={canDeleteUser} canAssignAdmin={true} />;
 }

@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "../../../lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
 type Role = "admin" | "verifier" | "viewer";
-
-const BOOTSTRAP_ADMIN_ID = "d57eec62-d15d-4e06-90fd-7bacb05d4a77";
 
 export async function POST(req: Request) {
   const supabase = await createSupabaseServer();
@@ -13,7 +12,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  if (userData.user.id !== BOOTSTRAP_ADMIN_ID) {
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userData.user.id)
+    .single();
+
+  if (callerProfile?.role !== "admin") {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
@@ -25,7 +30,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const { error } = await supabase.from("profiles").update({ role }).eq("id", userId);
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { error } = await supabaseAdmin.from("profiles").update({ role }).eq("id", userId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

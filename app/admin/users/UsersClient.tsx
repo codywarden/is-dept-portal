@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import BackButton from "../../components/BackButton";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Role = "admin" | "verifier" | "viewer";
 
@@ -13,11 +11,13 @@ type AdminRow = {
   first_name: string | null;
   last_name: string | null;
   location: string | null;
+  locations: string[] | null;
+  page_permissions: Record<string, boolean> | null;
   last_login: string | null;
   created_at?: string | null;
 };
 
-const LOCATIONS = [
+const LOCATIONS_DEFAULT = [
   "Bucklin",
   "Greensburg",
   "Ness City",
@@ -26,6 +26,49 @@ const LOCATIONS = [
   "Great Bend",
 ] as const;
 
+const PAGE_GROUPS: {
+  key: string;
+  label: string;
+  subpages: { key: string; label: string }[];
+}[] = [
+  {
+    key: "admin",
+    label: "Admin",
+    subpages: [
+      { key: "admin/users", label: "Manage Users" },
+      { key: "admin/users/add", label: "Add User" },
+      { key: "admin/users/delete", label: "Delete User" },
+      { key: "admin/settings", label: "Settings" },
+      { key: "admin/notes", label: "Notes" },
+    ],
+  },
+  { key: "see-spray", label: "See & Spray", subpages: [] },
+  { key: "sprayers", label: "Sprayers", subpages: [] },
+  {
+    key: "activation",
+    label: "Activation",
+    subpages: [
+      { key: "activation/upload", label: "Upload Cost" },
+      { key: "activation/sold-upload", label: "Upload Sold" },
+      { key: "activation/cost-account", label: "Cost Account" },
+      { key: "activation/location-summary", label: "Location Summary" },
+      { key: "activation/change-location", label: "Change Location" },
+      { key: "activation/reconcile", label: "Reconcile" },
+      { key: "activation/check", label: "Business System Numbers" },
+    ],
+  },
+  {
+    key: "service-agreements",
+    label: "Service Agreements",
+    subpages: [
+      { key: "service-agreements/customers", label: "Customers" },
+      { key: "service-agreements/equipment", label: "Equipment" },
+      { key: "service-agreements/tasks", label: "Tasks" },
+      { key: "service-agreements/settings", label: "Settings" },
+    ],
+  },
+];
+
 function fmtDate(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -33,7 +76,7 @@ function fmtDate(iso: string | null) {
   return d.toLocaleString();
 }
 
-export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[] }) {
+export default function UsersClient({ initialUsers, canAddUser, canDeleteUser, canAssignAdmin }: { initialUsers: AdminRow[]; canAddUser: boolean; canDeleteUser: boolean; canAssignAdmin: boolean }) {
   const [users, setUsers] = useState<AdminRow[]>(initialUsers);
   const [msg, setMsg] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -43,12 +86,12 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
     password: "",
     firstName: "",
     lastName: "",
-    location: "",
+    locations: [] as string[],
     role: "viewer" as Role,
   });
   const [loading, setLoading] = useState(false);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
-  const [locations, setLocations] = useState<string[]>(Array.from(LOCATIONS));
+  const [locations, setLocations] = useState<string[]>(Array.from(LOCATIONS_DEFAULT));
 
   useEffect(() => {
     (async () => {
@@ -69,7 +112,6 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
       formData.password &&
       formData.firstName.trim() &&
       formData.lastName.trim() &&
-      formData.location &&
       formData.role
   );
 
@@ -78,60 +120,36 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
     if (!q) return users;
     return users.filter((u) => {
       const name = `${u.first_name ?? ""} ${u.last_name ?? ""}`.toLowerCase();
-      const loc = (u.location ?? "").toLowerCase();
+      const locs = (u.locations ?? (u.location ? [u.location] : [])).join(" ").toLowerCase();
       return (
         (u.email ?? "").toLowerCase().includes(q) ||
         u.id.includes(q) ||
         name.includes(q) ||
-        loc.includes(q)
+        locs.includes(q)
       );
     });
   }, [users, query]);
 
   async function setRole(userId: string, role: Role) {
-    setMsg(null);
-
     const res = await fetch("/api/admin/set-role", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, role }),
     });
-
     const data = await res.json();
     if (!res.ok) return setMsg(data?.error ?? "Failed to update role");
-
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
-    setMsg("Role updated ✅");
   }
 
-  async function updateProfile(
-    userId: string,
-    patch: Partial<Pick<AdminRow, "first_name" | "last_name" | "location">>
-  ) {
-    setMsg(null);
-
-    const res = await fetch("/api/admin/update-profile", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, patch }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) return setMsg(data?.error ?? "Failed to update profile");
-
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...patch } : u)));
-    setMsg("Profile updated ✅");
-  }
 
   async function addUser() {
     setMsg(null);
-    const { email, password, firstName, lastName, location, role } = formData;
+    const { email, password, firstName, lastName, locations: locs, role } = formData;
     const missing: string[] = [];
     if (!email?.trim()) missing.push("Email");
     if (!password?.trim()) missing.push("Password");
     if (!firstName?.trim()) missing.push("First name");
     if (!lastName?.trim()) missing.push("Last name");
-    if (!location?.trim()) missing.push("Location");
     if (!role) missing.push("Role");
 
     if (missing.length > 0) {
@@ -150,7 +168,8 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
         password: formData.password,
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        location: formData.location.trim(),
+        locations: locs,
+        location: locs[0] ?? null,
         role: formData.role,
       }),
     });
@@ -166,6 +185,8 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
       first_name: data.user.first_name,
       last_name: data.user.last_name,
       location: data.user.location,
+      locations: data.user.locations ?? (data.user.location ? [data.user.location] : []),
+      page_permissions: null,
       role: data.user.role,
       last_login: null,
       created_at: new Date().toISOString(),
@@ -174,41 +195,36 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
     setUsers((prev) => [newUser, ...prev]);
     setMsg("User added successfully ✅");
     setShowAddForm(false);
-    setFormData({
-      email: "",
-      password: "",
-      firstName: "",
-      lastName: "",
-      location: "",
-      role: "viewer",
-    });
+    setFormData({ email: "", password: "", firstName: "", lastName: "", locations: [], role: "viewer" });
     setAttemptedSubmit(false);
   }
 
   async function deleteUser(userId: string) {
     setMsg(null);
-
     const res = await fetch("/api/admin/delete-user", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId }),
     });
-
     const data = await res.json();
     if (!res.ok) return setMsg(data?.error ?? "Failed to delete user");
-
     setUsers((prev) => prev.filter((u) => u.id !== userId));
     setMsg("User deleted ✅");
   }
 
+  function toggleAddFormLocation(loc: string) {
+    setFormData((prev) => ({
+      ...prev,
+      locations: prev.locations.includes(loc)
+        ? prev.locations.filter((l) => l !== loc)
+        : [...prev.locations, loc],
+    }));
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#d7d9cc", padding: 32 }}>
-      <BackButton />
-
       <header style={{ marginBottom: 18 }}>
-        <h1 style={{ fontSize: 30, fontWeight: 900, color: "#367C2B" }}>
-          Manage Users
-        </h1>
+        <h1 style={{ fontSize: 30, fontWeight: 900, color: "#367C2B" }}>Manage Users</h1>
 
         <div style={{ marginTop: 14, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <input
@@ -218,7 +234,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
             style={{
               padding: "10px 12px",
               borderRadius: 10,
-              border: "1px solid rgba(117, 9, 9, 0.15)",
+              border: "1px solid rgba(0,0,0,0.15)",
               minWidth: 280,
               background: "#f9fafb",
               color: "#111827",
@@ -237,25 +253,18 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
           >
             Users: {filtered.length}
           </div>
-          <button
-            onClick={() => {
-              const next = !showAddForm;
-              setShowAddForm(next);
-              setAttemptedSubmit(next);
-            }}
-            style={{
-              backgroundColor: "#367C2B",
-              color: "#FFC72C",
-              padding: "10px 16px",
-              borderRadius: 6,
-              fontWeight: 600,
-              border: "2px solid #FFC72C",
-              cursor: "pointer",
-              fontSize: "14px",
-            }}
-          >
-            {showAddForm ? "Cancel" : "+ Add User"}
-          </button>
+          {canAddUser && (
+            <button
+              className="btn-primary btn-lg"
+              onClick={() => {
+                const next = !showAddForm;
+                setShowAddForm(next);
+                setAttemptedSubmit(false);
+              }}
+            >
+              {showAddForm ? "Cancel" : "+ Add User"}
+            </button>
+          )}
         </div>
 
         {msg && (
@@ -291,7 +300,6 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
               <input
                 type="email"
                 placeholder="Email *"
-                required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 style={{
@@ -306,7 +314,6 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
               <input
                 type="password"
                 placeholder="Password *"
-                required
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 style={{
@@ -321,7 +328,6 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
               <input
                 type="text"
                 placeholder="First Name *"
-                required
                 value={formData.firstName}
                 onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                 style={{
@@ -336,7 +342,6 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
               <input
                 type="text"
                 placeholder="Last Name *"
-                required
                 value={formData.lastName}
                 onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                 style={{
@@ -349,33 +354,12 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
                 }}
               />
               <select
-                required
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                style={{
-                  padding: 10,
-                  borderRadius: 8,
-                  border: attemptedSubmit && !formData.location ? "2px solid #dc2626" : "1px solid rgba(0,0,0,0.15)",
-                  background: "white",
-                  color: "#111827",
-                  fontWeight: 500,
-                }}
-              >
-                <option value="">Select Location *</option>
-                {locations.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-              <select
-                required
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
                 style={{
                   padding: 10,
                   borderRadius: 8,
-                  border: attemptedSubmit && !formData.role ? "2px solid #dc2626" : "1px solid rgba(0,0,0,0.15)",
+                  border: "1px solid rgba(0,0,0,0.15)",
                   background: "white",
                   color: "#111827",
                   fontWeight: 500,
@@ -387,21 +371,46 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
                 <option value="admin">Admin</option>
               </select>
             </div>
+
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#111827", marginBottom: 8 }}>
+                Locations
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
+                {locations.map((l) => (
+                  <label
+                    key={l}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: formData.locations.includes(l) ? "2px solid #367C2B" : "1px solid rgba(0,0,0,0.12)",
+                      background: "white",
+                      cursor: "pointer",
+                      fontWeight: 800,
+                      fontSize: 14,
+                      color: "#111827",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.locations.includes(l)}
+                      onChange={() => toggleAddFormLocation(l)}
+                      style={{ accentColor: "#367C2B", width: 16, height: 16 }}
+                    />
+                    {l}
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <button
+              className="btn-primary btn-lg"
               onClick={addUser}
               disabled={loading}
-              style={{
-                marginTop: 12,
-                backgroundColor: "#367C2B",
-                color: "#FFC72C",
-                padding: "10px 20px",
-                borderRadius: 6,
-                fontWeight: 600,
-                border: "2px solid #FFC72C",
-                cursor: loading ? "not-allowed" : canSubmit ? "pointer" : "default",
-                opacity: loading || !canSubmit ? 0.6 : 1,
-                fontSize: "14px",
-              }}
+              style={{ marginTop: 12, opacity: loading || !canSubmit ? 0.6 : 1 }}
             >
               {loading ? "Adding..." : "Add User"}
             </button>
@@ -415,8 +424,9 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
             key={u.id}
             user={u}
             locations={locations}
+            canDeleteUser={canDeleteUser}
+            canAssignAdmin={canAssignAdmin}
             onSetRole={setRole}
-            onUpdateProfile={updateProfile}
             onDelete={deleteUser}
           />
         ))}
@@ -428,22 +438,127 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminRow[]
 function UserRow({
   user,
   locations,
+  canDeleteUser,
+  canAssignAdmin,
   onSetRole,
-  onUpdateProfile,
   onDelete,
 }: {
   user: AdminRow;
   locations: string[];
+  canDeleteUser: boolean;
+  canAssignAdmin: boolean;
   onSetRole: (id: string, role: Role) => Promise<void>;
-  onUpdateProfile: (
-    id: string,
-    patch: Partial<Pick<AdminRow, "first_name" | "last_name" | "location">>
-  ) => Promise<void>;
   onDelete: (id: string) => Promise<void> | void;
 }) {
   const [first, setFirst] = useState(user.first_name ?? "");
   const [last, setLast] = useState(user.last_name ?? "");
-  const [loc, setLoc] = useState(user.location ?? "");
+  const [displayEmail, setDisplayEmail] = useState(user.email ?? "");
+  const [locs, setLocs] = useState<string[]>(
+    user.locations ?? (user.location ? [user.location] : [])
+  );
+  const [perms, setPerms] = useState<Record<string, boolean>>(user.page_permissions ?? {});
+  const [showPerms, setShowPerms] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showResetPw, setShowResetPw] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [resetPwSaving, setResetPwSaving] = useState(false);
+  const [resetPwMsg, setResetPwMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [editFirst, setEditFirst] = useState("");
+  const [editLast, setEditLast] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [editSaveStatus, setEditSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const isFirstRender = useRef(true);
+  const isEditFirstChange = useRef(true);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    setSaveStatus("saving");
+    debounceTimer.current = setTimeout(async () => {
+      await fetch("/api/admin/update-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          patch: { locations: locs, page_permissions: perms },
+        }),
+      });
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    }, 1200);
+  }, [locs, perms]);
+
+  useEffect(() => {
+    if (!showEdit) return;
+    if (isEditFirstChange.current) {
+      isEditFirstChange.current = false;
+      return;
+    }
+    if (editDebounceTimer.current) clearTimeout(editDebounceTimer.current);
+    setEditSaveStatus("saving");
+    setEditError(null);
+    editDebounceTimer.current = setTimeout(async () => {
+      const res = await fetch("/api/admin/update-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          patch: {
+            first_name: editFirst.trim(),
+            last_name: editLast.trim(),
+            email: editEmail.trim() !== displayEmail ? editEmail.trim() : undefined,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEditError(data?.error ?? "Failed to save");
+        setEditSaveStatus("idle");
+        return;
+      }
+      setFirst(editFirst.trim());
+      setLast(editLast.trim());
+      if (editEmail.trim() !== displayEmail) setDisplayEmail(editEmail.trim());
+      setEditSaveStatus("saved");
+      setTimeout(() => setEditSaveStatus("idle"), 2000);
+    }, 1200);
+  }, [editFirst, editLast, editEmail]);
+
+  function openEdit() {
+    isEditFirstChange.current = true;
+    setEditFirst(first);
+    setEditLast(last);
+    setEditEmail(displayEmail);
+    setEditError(null);
+    setEditSaveStatus("idle");
+    setShowEdit(true);
+  }
+
+  function toggleLoc(loc: string) {
+    setLocs((prev) =>
+      prev.includes(loc) ? prev.filter((l) => l !== loc) : [...prev, loc]
+    );
+  }
+
+  function togglePerm(key: string, value: boolean) {
+    setPerms((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function toggleGroup(groupKey: string, subpages: { key: string }[], value: boolean) {
+    setPerms((prev) => {
+      const next = { ...prev, [groupKey]: value };
+      for (const s of subpages) next[s.key] = value;
+      return next;
+    });
+  }
 
   return (
     <div
@@ -451,120 +566,308 @@ function UserRow({
         background: "#f9fafb",
         border: "1px solid rgba(0,0,0,0.12)",
         borderRadius: 14,
-        padding: 14,
         boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
-        display: "grid",
-        gridTemplateColumns: "1.2fr 1fr 180px",
-        gap: 12,
-        alignItems: "center",
+        overflow: "hidden",
       }}
     >
-      <div>
-        <div style={{ fontWeight: 900, color: "#111827" }}>
-          {user.email ?? "(no email)"}
-        </div>
-        <div style={{ marginTop: 4, fontSize: 12, opacity: 0.75, color: "#111827" }}>
-          {user.id}
-        </div>
-        <div style={{ marginTop: 6, fontSize: 13, color: "#111827" }}>
-          <b>Last login:</b> {fmtDate(user.last_login)}
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gap: 8 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <input
-            value={first}
-            onChange={(e) => setFirst(e.target.value)}
-            placeholder="First"
-            style={{ padding: 10, color: "#111827", borderRadius: 10, border: "4px solid rgba(5, 0, 0, 0.15)" }}
-          />
-          <input
-            value={last}
-            onChange={(e) => setLast(e.target.value)}
-            placeholder="Last"
-            style={{ padding: 10, color: "#111827", borderRadius: 10, border: "4px solid rgba(0, 0, 0, 0.15)" }}
-          />
+      {/* Main row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 180px",
+          gap: 12,
+          alignItems: "start",
+          padding: 14,
+        }}
+      >
+        {/* Left: identity */}
+        <div>
+          {(first || last) && (
+            <div style={{ fontWeight: 900, fontSize: 15, color: "#111827" }}>
+              {[first, last].filter(Boolean).join(" ")}
+            </div>
+          )}
+          <div style={{ fontWeight: first || last ? 500 : 900, color: "#111827", marginTop: first || last ? 2 : 0 }}>
+            {displayEmail || "(no email)"}
+          </div>
+          <div style={{ marginTop: 4, fontSize: 12, opacity: 0.75, color: "#111827" }}>{user.id}</div>
+          <div style={{ marginTop: 6, fontSize: 13, color: "#111827" }}>
+            <b>Last login:</b> {fmtDate(user.last_login)}
+          </div>
         </div>
 
-        <select
-          value={loc}
-          onChange={(e) => setLoc(e.target.value)}
-          style={{
-            padding: 10,
-            borderRadius: 10,
-            border: "4px solid rgba(0,0,0,0.15)",
-            background: "white",
-            fontWeight: 700,
-            color: "#000103",
-          }}
-        >
-          <option value="">Select location…</option>
-          {locations.map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
-          ))}
-        </select>
-
-        <button
-          onClick={() =>
-            onUpdateProfile(user.id, {
-              first_name: first.trim(),
-              last_name: last.trim(),
-              location: loc.trim(),
-            })
-          }
-          style={{
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "none",
-            background: "#367C2B",
-            color: "white",
-            fontWeight: 900,
-          }}
-        >
-          Save Profile
-        </button>
-      </div>
-
-      <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
-        <select
-          value={user.role}
-          onChange={(e) => onSetRole(user.id, e.target.value as Role)}
-          style={{
-            padding: "10px 12px",
+        {/* Right: role badge + permissions toggle + delete */}
+        <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
+          <div style={{
+            padding: "8px 14px",
             borderRadius: 10,
             border: "2px solid #367C2B",
             background: "#ffffff",
             color: "#111827",
             fontWeight: 900,
+            fontSize: 13,
             minWidth: 120,
-          }}
-        >
-          <option value="viewer">viewer</option>
-          <option value="verifier">verifier</option>
-          <option value="admin">admin</option>
-        </select>
+            textAlign: "center",
+            textTransform: "capitalize",
+          }}>
+            {user.role}
+          </div>
 
-        <button
-          onClick={() => {
-            if (!confirm(`Delete user ${user.email ?? user.id}? This cannot be undone.`)) return;
-            onDelete(user.id);
-          }}
+          <button
+            onClick={openEdit}
+            style={{ padding: "8px 12px", borderRadius: 10, border: "2px solid #6b7280", background: "white", color: "#374151", fontWeight: 700, cursor: "pointer", fontSize: 12, minWidth: 120 }}
+          >
+            Edit Profile
+          </button>
+
+          <button
+            onClick={() => { setShowResetPw((v) => !v); setNewPassword(""); setResetPwMsg(null); }}
+            style={{ padding: "8px 12px", borderRadius: 10, border: "2px solid #6b7280", background: showResetPw ? "#374151" : "white", color: showResetPw ? "white" : "#374151", fontWeight: 700, cursor: "pointer", fontSize: 12, minWidth: 120 }}
+          >
+            Reset Password
+          </button>
+
+          <button
+            onClick={() => setShowPerms((v) => !v)}
+            style={{ padding: "8px 12px", borderRadius: 10, border: "2px solid #6b7280", background: showPerms ? "#374151" : "white", color: showPerms ? "white" : "#374151", fontWeight: 700, cursor: "pointer", fontSize: 12, minWidth: 120 }}
+          >
+            {showPerms ? "Hide Permissions" : "Page Permissions"}
+          </button>
+
+          {canDeleteUser && (
+            <button
+              onClick={() => {
+                if (!confirm(`Delete user ${user.email ?? user.id}? This cannot be undone.`)) return;
+                onDelete(user.id);
+              }}
+              style={{ padding: "8px 12px", borderRadius: 10, border: "2px solid #dc2626", background: "white", color: "#dc2626", fontWeight: 700, cursor: "pointer", fontSize: 12, minWidth: 120 }}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Edit name/email panel */}
+      {showEdit && (
+        <div style={{ borderTop: "1px solid rgba(0,0,0,0.1)", padding: "14px 16px", background: "#f3f4f6" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, maxWidth: 600 }}>
+            <input
+              value={editFirst}
+              onChange={(e) => setEditFirst(e.target.value)}
+              placeholder="First name"
+              style={{ padding: 10, color: "#111827", borderRadius: 10, border: "1px solid rgba(0,0,0,0.15)", background: "white" }}
+            />
+            <input
+              value={editLast}
+              onChange={(e) => setEditLast(e.target.value)}
+              placeholder="Last name"
+              style={{ padding: 10, color: "#111827", borderRadius: 10, border: "1px solid rgba(0,0,0,0.15)", background: "white" }}
+            />
+            <input
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+              placeholder="Email"
+              type="email"
+              style={{ padding: 10, color: "#111827", borderRadius: 10, border: "1px solid rgba(0,0,0,0.15)", background: "white" }}
+            />
+          </div>
+          {editError && <div style={{ marginTop: 8, fontSize: 13, color: "#dc2626" }}>{editError}</div>}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+            <button
+              onClick={() => setShowEdit(false)}
+              style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.2)", background: "white", color: "#374151", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+            >
+              Close
+            </button>
+            <div style={{ fontSize: 13, fontWeight: 700, color: editSaveStatus === "saved" ? "#367C2B" : "#6b7280", visibility: editSaveStatus === "idle" ? "hidden" : "visible" }}>
+              {editSaveStatus === "saving" ? "Saving…" : "Saved ✓"}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset password panel */}
+      {showResetPw && (
+        <div style={{ borderTop: "1px solid rgba(0,0,0,0.1)", padding: "14px 16px", background: "#f3f4f6" }}>
+          <div style={{ fontWeight: 800, fontSize: 13, color: "#111827", marginBottom: 10 }}>Set New Password</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: 460 }}>
+            <input
+              type={showPw ? "text" : "password"}
+              value={newPassword}
+              onChange={(e) => { setNewPassword(e.target.value); setResetPwMsg(null); }}
+              placeholder="New password (min 6 chars)"
+              style={{ flex: 1, padding: "9px 10px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.15)", background: "white", color: "#111827", fontWeight: 600 }}
+            />
+            <button
+              onClick={() => setShowPw((v) => !v)}
+              style={{ padding: "9px 10px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.15)", background: "white", color: "#6b7280", fontWeight: 700, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              {showPw ? "Hide" : "Show"}
+            </button>
+            <button
+              onClick={async () => {
+                if (newPassword.length < 6) return setResetPwMsg({ type: "error", text: "Password must be at least 6 characters" });
+                setResetPwSaving(true);
+                const res = await fetch("/api/admin/reset-password", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ userId: user.id, password: newPassword }),
+                });
+                const data = await res.json();
+                setResetPwSaving(false);
+                if (!res.ok) return setResetPwMsg({ type: "error", text: data?.error ?? "Failed to reset password" });
+                setResetPwMsg({ type: "success", text: "Password updated ✓" });
+                setNewPassword("");
+              }}
+              disabled={resetPwSaving}
+              style={{ padding: "9px 16px", borderRadius: 10, border: "none", background: "#367C2B", color: "white", fontWeight: 700, fontSize: 13, cursor: resetPwSaving ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+            >
+              {resetPwSaving ? "Saving…" : "Set Password"}
+            </button>
+          </div>
+          {resetPwMsg && (
+            <div style={{ marginTop: 8, fontSize: 13, fontWeight: 700, color: resetPwMsg.type === "success" ? "#367C2B" : "#dc2626" }}>
+              {resetPwMsg.text}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Expandable permissions panel */}
+      {showPerms && (
+        <div
           style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: "2px solid rgba(220, 38, 38, 0.9)",
-            background: "#fff",
-            color: "#dc2626",
-            fontWeight: 800,
-            cursor: "pointer",
+            borderTop: "1px solid rgba(0,0,0,0.1)",
+            padding: "14px 16px",
+            background: "#f3f4f6",
           }}
         >
-          Delete
-        </button>
-      </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+
+            {/* Location & Setup header */}
+            <div style={{ gridColumn: "1 / -1", fontWeight: 800, fontSize: 14, color: "#111827" }}>
+              Location & Setup
+            </div>
+
+            {/* Locations card */}
+            <div
+              style={{
+                background: "white",
+                borderRadius: 10,
+                border: locs.length === locations.length && locations.length > 0 ? "2px solid #367C2B" : "1px solid rgba(0,0,0,0.12)",
+                padding: "10px 12px",
+              }}
+            >
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 800, fontSize: 14, color: "#111827" }}>
+                <input
+                  type="checkbox"
+                  checked={locs.length === locations.length && locations.length > 0}
+                  onChange={(e) => setLocs(e.target.checked ? [...locations] : [])}
+                  style={{ accentColor: "#367C2B", width: 16, height: 16 }}
+                />
+                Select All
+              </label>
+              <div style={{ marginTop: 8, paddingLeft: 24, display: "grid", gap: 5 }}>
+                {locations.map((l) => (
+                  <label key={l} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: "#374151", fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={locs.includes(l)}
+                      onChange={() => toggleLoc(l)}
+                      style={{ accentColor: "#367C2B" }}
+                    />
+                    {l}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Role card */}
+            <div style={{
+              background: "white",
+              borderRadius: 10,
+              border: "1px solid rgba(0,0,0,0.12)",
+              padding: "10px 12px",
+            }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#111827", marginBottom: 8 }}>Role</div>
+              <div style={{ display: "grid", gap: 5 }}>
+                {(["viewer", "verifier", ...(canAssignAdmin ? ["admin"] : [])] as Role[]).map((r) => (
+                  <label key={r} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: "#374151", fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={user.role === r}
+                      onChange={async () => {
+                        if (user.role === r) return;
+                        if (r === "admin") {
+                          if (!confirm(`Are you sure you want to give ${user.email ?? "this user"} admin access? Admins have full control of the system.`)) return;
+                        }
+                        await onSetRole(user.id, r);
+                      }}
+                      style={{ accentColor: "#367C2B" }}
+                    />
+                    {r.charAt(0).toUpperCase() + r.slice(1)}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Page Permissions header */}
+            <div style={{ gridColumn: "1 / -1", fontWeight: 800, fontSize: 14, color: "#111827", marginTop: 8 }}>
+              Page Permissions
+              <span style={{ marginLeft: 8, fontWeight: 500, fontSize: 12, color: "#6b7280" }}>
+                (leave all off to use role-based defaults)
+              </span>
+            </div>
+
+            {/* Permission cards */}
+            {PAGE_GROUPS.map((group) => {
+              const groupOn = perms[group.key] === true;
+              return (
+                <div
+                  key={group.key}
+                  style={{
+                    background: "white",
+                    borderRadius: 10,
+                    border: groupOn ? "2px solid #367C2B" : "1px solid rgba(0,0,0,0.12)",
+                    padding: "10px 12px",
+                  }}
+                >
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 800, fontSize: 14, color: "#111827" }}>
+                    <input
+                      type="checkbox"
+                      checked={groupOn}
+                      onChange={(e) => toggleGroup(group.key, group.subpages, e.target.checked)}
+                      style={{ accentColor: "#367C2B", width: 16, height: 16 }}
+                    />
+                    {group.label}
+                  </label>
+                  {group.subpages.length > 0 && (
+                    <div style={{ marginTop: 8, paddingLeft: 24, display: "grid", gap: 5 }}>
+                      {group.subpages.map((sub) => (
+                        <label key={sub.key} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: "#374151", fontWeight: 600 }}>
+                          <input
+                            type="checkbox"
+                            checked={perms[sub.key] === true}
+                            onChange={(e) => togglePerm(sub.key, e.target.checked)}
+                            style={{ accentColor: "#367C2B" }}
+                          />
+                          {sub.label}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+          </div>
+
+          <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700, color: saveStatus === "saved" ? "#367C2B" : "#6b7280", visibility: saveStatus === "idle" ? "hidden" : "visible" }}>
+            {saveStatus === "saving" ? "Saving…" : "Saved ✓"}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

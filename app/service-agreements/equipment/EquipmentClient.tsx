@@ -1,6 +1,5 @@
 "use client";
 
-import BackButton from "../../components/BackButton";
 import { useEffect, useState } from "react";
 
 type Role = "admin" | "verifier" | "viewer";
@@ -85,7 +84,6 @@ export default function EquipmentClient({ role }: { role: Role }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#d7d9cc", padding: 32 }}>
-      <BackButton />
       <h1 style={{ fontSize: 30, fontWeight: 900, color: "#367C2B", marginBottom: 16 }}>Equipment</h1>
       {msg && (
         <div
@@ -103,7 +101,7 @@ export default function EquipmentClient({ role }: { role: Role }) {
         </div>
       )}
 
-      {role === "viewer" && (
+      {role !== "viewer" && (
         <div style={{ marginBottom: 16, background: "#f9fafb", padding: 12, borderRadius: 10 }}>
           <h3 style={{ marginTop: 0, marginBottom: 12, color: "#000" }}>Add Equipment</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8 }}>
@@ -126,6 +124,7 @@ export default function EquipmentClient({ role }: { role: Role }) {
               style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", background: "white", color: "#000", fontWeight: 500 }}
             />
             <button
+              className="btn-primary"
               onClick={addItem}
               disabled={loading}
               style={{
@@ -170,7 +169,7 @@ export default function EquipmentClient({ role }: { role: Role }) {
                 </div>
               )}
             </div>
-            {role === "viewer" && (
+            {role !== "viewer" && (
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <input
                   placeholder="Receiver ID"

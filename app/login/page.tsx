@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import BackButton from "../components/BackButton";
 import { createClient } from "../lib/supabase/client";
 
 export default function LoginPage() {
@@ -55,7 +54,7 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           style={{ padding: 10 }}
         />
-        <button disabled={loading} style={{ padding: 10 }}>
+        <button className="btn-primary" disabled={loading} style={{ padding: 10 }}>
           {loading ? "Signing in..." : "Sign in"}
         </button>
 

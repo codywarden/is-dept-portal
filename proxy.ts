@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const res = NextResponse.next();
 
   const supabase = createServerClient(
@@ -19,18 +19,19 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const path = req.nextUrl.pathname;
 
-  // ✅ Public routes (can view without login)
   const isPublic =
     path === "/login" ||
     path.startsWith("/auth") ||
+    path.startsWith("/api/activation/subscriptions/email-upload") ||
     path.startsWith("/_next") ||
     path === "/favicon.ico";
 
-  // ✅ Block everything else if not logged in
   if (!user && !isPublic) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";

@@ -1,6 +1,5 @@
 "use client";
 
-import BackButton from "../../components/BackButton";
 import { useEffect, useState } from "react";
 
 type Role = "admin" | "verifier" | "viewer";
@@ -31,26 +30,24 @@ export default function TasksClient({ role }: { role: Role }) {
   const [locations, setLocations] = useState<string[]>(Array.from(DEFAULT_LOCATIONS));
   const [selectedLocation, setSelectedLocation] = useState("");
 
-  async function loadTasks(locationFilter?: string) {
-    try {
-      const params = new URLSearchParams();
-      if (role === "admin" && locationFilter) params.set("location", locationFilter);
-      const url = params.toString()
-        ? `/api/service-agreements/tasks?${params.toString()}`
-        : "/api/service-agreements/tasks";
-      const res = await fetch(url);
-      if (!res.ok) return;
-      const { data } = await res.json();
-      setTasks(data || []);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
   // Load tasks from API on mount / filter change
   useEffect(() => {
-    loadTasks(selectedLocation);
-  }, [selectedLocation]);
+    (async () => {
+      try {
+        const params = new URLSearchParams();
+        if (role === "admin" && selectedLocation) params.set("location", selectedLocation);
+        const url = params.toString()
+          ? `/api/service-agreements/tasks?${params.toString()}`
+          : "/api/service-agreements/tasks";
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const { data } = await res.json();
+        setTasks(data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+  }, [role, selectedLocation]);
 
   useEffect(() => {
     (async () => {
@@ -130,7 +127,6 @@ export default function TasksClient({ role }: { role: Role }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#d7d9cc", padding: 32 }}>
-      <BackButton />
       <h1 style={{ fontSize: 30, fontWeight: 900, color: "#367C2B", marginBottom: 8 }}>Tasks</h1>
 
       {role === "admin" && (
@@ -220,6 +216,7 @@ export default function TasksClient({ role }: { role: Role }) {
         />
         {(role === "admin" || role === "verifier") && (
           <button
+            className="btn-primary"
             onClick={addTask}
             disabled={loading}
             style={{
@@ -257,10 +254,26 @@ export default function TasksClient({ role }: { role: Role }) {
                 <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Due: {task.due_date}</div>
               )}
             </div>
-            <select
-              value={task.status}
-              onChange={(e) => updateStatus(task.id, e.target.value as Task["status"])}
-              style={{
+            {role !== "viewer" ? (
+              <select
+                value={task.status}
+                onChange={(e) => updateStatus(task.id, e.target.value as Task["status"])}
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "2px solid #367C2B",
+                  backgroundColor:
+                    task.status === "complete" ? "#dcfce7" : task.status === "in_progress" ? "#fef3c7" : "#fee2e2",
+                  color: task.status === "complete" ? "#16a34a" : task.status === "in_progress" ? "#d97706" : "#dc2626",
+                  fontWeight: 700,
+                }}
+              >
+                <option value="not_started">Not Started</option>
+                <option value="in_progress">In Progress</option>
+                <option value="complete">Complete</option>
+              </select>
+            ) : (
+              <span style={{
                 padding: "8px 10px",
                 borderRadius: 8,
                 border: "2px solid #367C2B",
@@ -268,12 +281,11 @@ export default function TasksClient({ role }: { role: Role }) {
                   task.status === "complete" ? "#dcfce7" : task.status === "in_progress" ? "#fef3c7" : "#fee2e2",
                 color: task.status === "complete" ? "#16a34a" : task.status === "in_progress" ? "#d97706" : "#dc2626",
                 fontWeight: 700,
-              }}
-            >
-              <option value="not_started">Not Started</option>
-              <option value="in_progress">In Progress</option>
-              <option value="complete">Complete</option>
-            </select>
+                fontSize: 14,
+              }}>
+                {task.status === "complete" ? "Complete" : task.status === "in_progress" ? "In Progress" : "Not Started"}
+              </span>
+            )}
           </div>
         ))}
       </div>
