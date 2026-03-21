@@ -87,6 +87,15 @@ function parseNewStyle(pages: { text: string }[]): ParsedCostItem[] {
     const shipToCity = shipToIdx >= 0 ? extractCityFromAddress(lines, shipToIdx) : null;
     console.log("[parseCostPdf] extracted city:", shipToCity);
 
+    const soldToIdx = lines.findIndex((l) => l === "Sold To:");
+    if (soldToIdx >= 0) {
+      console.log("[parseCostPdf] Sold To segment:", lines.slice(soldToIdx, soldToIdx + 10));
+    }
+    const orderedByIdx2 = lines.findIndex((l) => l === "Ordered By:");
+    if (orderedByIdx2 >= 0) {
+      console.log("[parseCostPdf] Ordered By segment:", lines.slice(orderedByIdx2, orderedByIdx2 + 6));
+    }
+
     let amount: number | null = null;
     for (let i = lines.length - 1; i >= 0; i -= 1) {
       const m = lines[i].match(moneyRegex);
