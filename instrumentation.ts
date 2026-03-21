@@ -1,5 +1,14 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    // Disable pdfjs-dist worker — in serverless environments there is no worker
+    // thread support, so we must run PDF.js inline on the main thread.
+    try {
+      const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      pdfjs.GlobalWorkerOptions.workerSrc = "";
+    } catch {
+      // ignore if pdfjs-dist is not available
+    }
+
     if (typeof globalThis.DOMMatrix === "undefined") {
       // pdfjs-dist (used by pdf-parse) references DOMMatrix, which is a browser-only
       // API not available in Node.js. This stub satisfies the reference so the module
@@ -36,7 +45,7 @@ export async function register() {
           }
           return m;
         }
-        static fromMatrix(other?: DOMMatrixInit): DOMMatrix { return new DOMMatrix(); }
+        static fromMatrix(_other?: DOMMatrixInit): DOMMatrix { return new DOMMatrix(); }
         static fromFloat32Array(array: Float32Array): DOMMatrix { return new DOMMatrix(Array.from(array)); }
         static fromFloat64Array(array: Float64Array): DOMMatrix { return new DOMMatrix(Array.from(array)); }
       }
