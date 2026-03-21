@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { PDFParse } from "pdf-parse";
+import pdfParse from "pdf-parse";
 import { parseCostPdfPages, detectCostPdfStyle } from "../../../../lib/subscriptions/parseCostPdf";
 import { parseSoldPdfText } from "../../../../lib/subscriptions/parseSoldPdf";
+
+async function parsePdf(buffer: Buffer): Promise<{ text: string; pages: { text: string }[] }> {
+  const pageTexts: { text: string }[] = [];
+  const result = await pdfParse(buffer, {
+    pagerender: async (pageData: { getTextContent: () => Promise<{ items: { str: string }[] }> }) => {
+      const content = await pageData.getTextContent();
+      const text = content.items.map((item) => item.str).join("\n");
+      pageTexts.push({ text });
+      return text;
+    },
+  });
+  return { text: result.text, pages: pageTexts };
+}
 
 type UploadType = "cost" | "sold";
 type CostStyle = "auto" | "new" | "old";
@@ -106,13 +119,9 @@ async function processCostFile(params: {
   }
 
   const fileBuffer = await file.arrayBuffer();
-  const bytesForParse = new Uint8Array(fileBuffer.slice(0));
   const bytesForUpload = new Uint8Array(fileBuffer.slice(0));
 
-  const parser = new PDFParse({
-    data: bytesForParse,
-  });
-  const parsed = await parser.getText();
+  const parsed = await parsePdf(Buffer.from(fileBuffer));
 
   const detectedStyle = style === "auto" ? detectCostPdfStyle(parsed.text) : style;
   const { items } = parseCostPdfPages(parsed.pages, detectedStyle);
@@ -305,10 +314,7 @@ async function processSoldFile(params: {
     locationNameMap.set(normalizeLocationKey(location), location);
   });
 
-  const parser = new PDFParse({
-    data: new Uint8Array(fileBuffer.slice(0)),
-  });
-  const parsed = await parser.getText();
+  const parsed = await parsePdf(Buffer.from(fileBuffer));
 
   const { items } = parseSoldPdfText(parsed.text, {
     locationCodeMap: Object.keys(locationCodeMap).length > 0 ? locationCodeMap : undefined,
