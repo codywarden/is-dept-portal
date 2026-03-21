@@ -502,7 +502,8 @@ export async function POST(req: NextRequest) {
           const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)/i);
           const fileName = match?.[1]?.trim() || url.split("/").pop()?.split("?")[0] || "attachment.pdf";
           const finalName = fileName.includes(".") ? fileName : `${fileName}.pdf`;
-          return new File([blob], decodeURIComponent(finalName), { type: blob.type || "application/pdf" });
+          const contentType = (!blob.type || blob.type === "application/octet-stream") ? "application/pdf" : blob.type;
+          return new File([blob], decodeURIComponent(finalName), { type: contentType });
         } catch (err) {
           console.error(`[email-upload] fetch error for ${url.slice(0, 60)}:`, err);
           return null;
