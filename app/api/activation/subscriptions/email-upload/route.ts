@@ -476,7 +476,10 @@ export async function POST(req: NextRequest) {
       ? uploadTypeRaw
       : null;
 
-    const directFiles = Array.from(form.entries())
+    const allEntries = Array.from(form.entries());
+    console.log("[email-upload] form keys:", allEntries.map(([k, v]) => `${k}=${v instanceof File ? `File(${v.size},${v.type})` : String(v).slice(0, 100)}`));
+
+    const directFiles = allEntries
       .map(([, value]) => value)
       .filter((value): value is File => value instanceof File && value.size > 0);
 
