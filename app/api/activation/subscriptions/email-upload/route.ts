@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { PDFParse } from "pdf-parse";
-import path from "path";
-import { pathToFileURL } from "url";
 import { parseCostPdfPages, detectCostPdfStyle } from "../../../../lib/subscriptions/parseCostPdf";
 import { parseSoldPdfText } from "../../../../lib/subscriptions/parseSoldPdf";
-
-const STANDARD_FONT_URL = "https://unpkg.com/pdfjs-dist@3.11.174/standard_fonts/";
-const workerPath = path.resolve(
-  process.cwd(),
-  "node_modules/pdf-parse/dist/pdf-parse/cjs/pdf.worker.mjs",
-);
-PDFParse.setWorker(pathToFileURL(workerPath).toString());
 
 type UploadType = "cost" | "sold";
 type CostStyle = "auto" | "new" | "old";
@@ -120,8 +111,6 @@ async function processCostFile(params: {
 
   const parser = new PDFParse({
     data: bytesForParse,
-    standardFontDataUrl: STANDARD_FONT_URL,
-    useWorkerFetch: false,
   });
   const parsed = await parser.getText();
 
@@ -318,8 +307,6 @@ async function processSoldFile(params: {
 
   const parser = new PDFParse({
     data: new Uint8Array(fileBuffer.slice(0)),
-    standardFontDataUrl: STANDARD_FONT_URL,
-    useWorkerFetch: false,
   });
   const parsed = await parser.getText();
 
