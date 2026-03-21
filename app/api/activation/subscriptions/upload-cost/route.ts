@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "../../../../lib/supabase/server";
 import { createSupabaseAdmin } from "../../../../lib/supabase/admin";
-import { PDFParse } from "pdf-parse";
-import path from "path";
-import { pathToFileURL } from "url";
+import pdfParse from "pdf-parse";
 import { parseCostPdfPages, detectCostPdfStyle } from "../../../../lib/subscriptions/parseCostPdf";
 
-const STANDARD_FONT_URL = "https://unpkg.com/pdfjs-dist@3.11.174/standard_fonts/";
-const workerPath = path.resolve(
-  process.cwd(),
-  "node_modules/pdf-parse/dist/pdf-parse/cjs/pdf.worker.mjs",
-);
-PDFParse.setWorker(pathToFileURL(workerPath).toString());
+async function parsePdf(buffer: Buffer): Promise<{ text: string; pages: { text: string }[] }> {
+  const pageTexts: { text: string }[] = [];
+  const result = await pdfParse(buffer, {
+    pagerender: async (pageData: { getTextContent: () => Promise<{ items: { str: string }[] }> }) => {
+      const content = await pageData.getTextContent();
+      const text = content.items.map((item) => item.str).join("\n");
+      pageTexts.push({ text });
+      return text;
+    },
+  });
+  return { text: result.text, pages: pageTexts };
+}
 
 type CustomerRow = { id: string; name: string | null };
 
@@ -38,15 +42,9 @@ export async function POST(req: NextRequest) {
     }
 
     const fileBuffer = await file.arrayBuffer();
-    const bytesForParse = new Uint8Array(fileBuffer.slice(0));
     const bytesForUpload = new Uint8Array(fileBuffer.slice(0));
 
-    const parser = new PDFParse({
-      data: bytesForParse,
-      standardFontDataUrl: STANDARD_FONT_URL,
-      useWorkerFetch: false,
-    });
-    const parsed = await parser.getText();
+    const parsed = await parsePdf(Buffer.from(fileBuffer));
 
     const detectedStyle = style === "auto" ? detectCostPdfStyle(parsed.text) : style;
     const { items } = parseCostPdfPages(parsed.pages, detectedStyle);

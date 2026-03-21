@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "../../../../lib/supabase/server";
 import { createSupabaseAdmin } from "../../../../lib/supabase/admin";
-import { PDFParse } from "pdf-parse";
-import path from "path";
-import { pathToFileURL } from "url";
+import pdfParse from "pdf-parse";
 import { parseSoldPdfText } from "../../../../lib/subscriptions/parseSoldPdf";
 
-const STANDARD_FONT_URL = "https://unpkg.com/pdfjs-dist@3.11.174/standard_fonts/";
-const workerPath = path.resolve(
-  process.cwd(),
-  "node_modules/pdf-parse/dist/pdf-parse/cjs/pdf.worker.mjs",
-);
-PDFParse.setWorker(pathToFileURL(workerPath).toString());
+async function parsePdf(buffer: Buffer): Promise<string> {
+  const result = await pdfParse(buffer);
+  return result.text;
+}
 
 type CustomerRow = { id: string; name: string | null };
 
@@ -73,13 +69,8 @@ export async function POST(req: NextRequest) {
       locationNameMap.set(normalizeLocationKey(location), location);
     });
 
-    const parser = new PDFParse({
-      data: new Uint8Array(fileBuffer.slice(0)),
-      standardFontDataUrl: STANDARD_FONT_URL,
-      useWorkerFetch: false,
-    });
-    const parsed = await parser.getText();
-    const { items } = parseSoldPdfText(parsed.text, {
+    const text = await parsePdf(Buffer.from(fileBuffer));
+    const { items } = parseSoldPdfText(text, {
       locationCodeMap: Object.keys(locationCodeMap).length > 0 ? locationCodeMap : undefined,
       knownLocations: knownLocations.length > 0 ? knownLocations : undefined,
     });
