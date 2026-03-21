@@ -492,13 +492,21 @@ export async function POST(req: NextRequest) {
 
     const downloadedFiles = await Promise.all(
       urlStrings.map(async (url) => {
-        const res = await fetch(url);
-        if (!res.ok) return null;
-        const blob = await res.blob();
-        const disposition = res.headers.get("content-disposition") ?? "";
-        const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)/i);
-        const fileName = match?.[1]?.trim() || url.split("/").pop()?.split("?")[0] || "attachment.pdf";
-        return new File([blob], decodeURIComponent(fileName), { type: blob.type || "application/pdf" });
+        try {
+          const res = await fetch(url);
+          console.log(`[email-upload] fetch ${url.slice(0, 60)} → status=${res.status} type=${res.headers.get("content-type")}`);
+          if (!res.ok) return null;
+          const blob = await res.blob();
+          console.log(`[email-upload] blob size=${blob.size} type=${blob.type}`);
+          const disposition = res.headers.get("content-disposition") ?? "";
+          const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)/i);
+          const fileName = match?.[1]?.trim() || url.split("/").pop()?.split("?")[0] || "attachment.pdf";
+          const finalName = fileName.includes(".") ? fileName : `${fileName}.pdf`;
+          return new File([blob], decodeURIComponent(finalName), { type: blob.type || "application/pdf" });
+        } catch (err) {
+          console.error(`[email-upload] fetch error for ${url.slice(0, 60)}:`, err);
+          return null;
+        }
       }),
     );
 
