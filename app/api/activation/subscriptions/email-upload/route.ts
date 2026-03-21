@@ -476,9 +476,33 @@ export async function POST(req: NextRequest) {
       ? uploadTypeRaw
       : null;
 
-    const files = Array.from(form.entries())
+    const directFiles = Array.from(form.entries())
       .map(([, value]) => value)
       .filter((value): value is File => value instanceof File && value.size > 0);
+
+    const urlStrings = Array.from(form.entries())
+      .map(([, value]) => value)
+      .filter((value): value is string => {
+        if (typeof value !== "string") return false;
+        try { new URL(value); return true; } catch { return false; }
+      });
+
+    const downloadedFiles = await Promise.all(
+      urlStrings.map(async (url) => {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const blob = await res.blob();
+        const disposition = res.headers.get("content-disposition") ?? "";
+        const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)/i);
+        const fileName = match?.[1]?.trim() || url.split("/").pop()?.split("?")[0] || "attachment.pdf";
+        return new File([blob], decodeURIComponent(fileName), { type: blob.type || "application/pdf" });
+      }),
+    );
+
+    const files = [
+      ...directFiles,
+      ...downloadedFiles.filter((f): f is File => f !== null && f.size > 0),
+    ];
 
     if (files.length === 0) {
       return NextResponse.json({ error: "No attachments found" }, { status: 400 });
