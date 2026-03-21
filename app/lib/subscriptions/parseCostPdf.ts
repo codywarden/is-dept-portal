@@ -81,7 +81,11 @@ function parseNewStyle(pages: { text: string }[]): ParsedCostItem[] {
     const orderedBy = orderedByIdx >= 0 ? pickOrderedBy(lines, orderedByIdx) : null;
 
     const shipToIdx = lines.findIndex((l) => l === "Ship To:");
+    if (shipToIdx >= 0) {
+      console.log("[parseCostPdf] Ship To segment:", lines.slice(shipToIdx, shipToIdx + 10));
+    }
     const shipToCity = shipToIdx >= 0 ? extractCityFromAddress(lines, shipToIdx) : null;
+    console.log("[parseCostPdf] extracted city:", shipToCity);
 
     let amount: number | null = null;
     for (let i = lines.length - 1; i >= 0; i -= 1) {
