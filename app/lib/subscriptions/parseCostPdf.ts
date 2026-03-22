@@ -80,21 +80,12 @@ function parseNewStyle(pages: { text: string }[]): ParsedCostItem[] {
     const orderedByIdx = lines.findIndex((l) => l === "Ordered By:");
     const orderedBy = orderedByIdx >= 0 ? pickOrderedBy(lines, orderedByIdx) : null;
 
+    const allShipToIndices = lines.reduce<number[]>((acc, l, i) => { if (l === "Ship To:") acc.push(i); return acc; }, []);
+    console.log("[parseCostPdf] All Ship To occurrences:", allShipToIndices.map(i => lines.slice(i, i + 8)));
+
     const shipToIdx = lines.findIndex((l) => l === "Ship To:");
-    if (shipToIdx >= 0) {
-      console.log("[parseCostPdf] Ship To segment:", lines.slice(shipToIdx, shipToIdx + 10));
-    }
     const shipToCity = shipToIdx >= 0 ? extractCityFromAddress(lines, shipToIdx) : null;
     console.log("[parseCostPdf] extracted city:", shipToCity);
-
-    const soldToIdx = lines.findIndex((l) => l === "Sold To:");
-    if (soldToIdx >= 0) {
-      console.log("[parseCostPdf] Sold To segment:", lines.slice(soldToIdx, soldToIdx + 10));
-    }
-    const orderedByIdx2 = lines.findIndex((l) => l === "Ordered By:");
-    if (orderedByIdx2 >= 0) {
-      console.log("[parseCostPdf] Ordered By segment:", lines.slice(orderedByIdx2, orderedByIdx2 + 6));
-    }
 
     let amount: number | null = null;
     for (let i = lines.length - 1; i >= 0; i -= 1) {
