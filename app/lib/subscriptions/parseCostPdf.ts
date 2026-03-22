@@ -74,7 +74,14 @@ function parseNewStyle(pages: { text: string }[]): ParsedCostItem[] {
     const licenseLine = lines.find((l) => l.startsWith("License Number:"));
     const licenseNumber = licenseLine ? licenseLine.replace("License Number:", "").trim() : null;
     const serialLine = lines.find((l) => l.startsWith("Machine Serial Number:"));
-    const serialNumber = extractSerialNumber(lines, serialLine);
+    const machineSerial = extractSerialNumber(lines, serialLine);
+
+    const deviceSerialIdx = lines.findIndex((l) => l === "Device Serial Number");
+    const deviceSerial = deviceSerialIdx >= 0
+      ? lines.slice(deviceSerialIdx + 1).find((l) => l && !l.includes(":") && l.trim().length > 0) ?? null
+      : null;
+
+    const serialNumber = machineSerial || deviceSerial || "N/A";
     const orderNumber = licenseNumber;
 
     const orderedByIdx = lines.findIndex((l) => l === "Ordered By:");
