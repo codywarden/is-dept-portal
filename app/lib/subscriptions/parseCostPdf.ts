@@ -76,15 +76,7 @@ function parseNewStyle(pages: { text: string }[]): ParsedCostItem[] {
     const serialLine = lines.find((l) => l.startsWith("Machine Serial Number:"));
     const machineSerial = extractSerialNumber(lines, serialLine);
 
-    const deviceSerialIdx = lines.findIndex((l) => l === "Device Serial Number");
-    if (deviceSerialIdx >= 0) {
-      console.log("[parseCostPdf] Device Serial segment:", lines.slice(deviceSerialIdx, deviceSerialIdx + 6));
-    } else {
-      console.log("[parseCostPdf] Device Serial Number header not found. Checking nearby:", lines.filter(l => l.toLowerCase().includes("serial")));
-    }
-    const deviceSerial = deviceSerialIdx >= 0
-      ? lines.slice(deviceSerialIdx + 1, deviceSerialIdx + 4).find((l) => /^[A-Z0-9]{13}$|^[A-Z0-9]{17}$/i.test(l.trim())) ?? null
-      : null;
+    const deviceSerial = lines.find((l) => /^[A-Z0-9]{13}$|^[A-Z0-9]{17}$/i.test(l.trim())) ?? null;
 
     const serialNumber = machineSerial || deviceSerial || "N/A";
     const orderNumber = licenseNumber;
