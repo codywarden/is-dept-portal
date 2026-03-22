@@ -78,7 +78,7 @@ function parseNewStyle(pages: { text: string }[]): ParsedCostItem[] {
 
     const deviceSerialIdx = lines.findIndex((l) => l === "Device Serial Number");
     const deviceSerial = deviceSerialIdx >= 0
-      ? lines.slice(deviceSerialIdx + 1, deviceSerialIdx + 6).find((l) => /^[A-Z0-9]{6,20}$/i.test(l.trim())) ?? null
+      ? lines.slice(deviceSerialIdx + 1, deviceSerialIdx + 4).find((l) => /^[A-Z0-9]{13}$|^[A-Z0-9]{17}$/i.test(l.trim())) ?? null
       : null;
 
     const serialNumber = machineSerial || deviceSerial || "N/A";
