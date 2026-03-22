@@ -80,12 +80,14 @@ function parseNewStyle(pages: { text: string }[]): ParsedCostItem[] {
     const orderedByIdx = lines.findIndex((l) => l === "Ordered By:");
     const orderedBy = orderedByIdx >= 0 ? pickOrderedBy(lines, orderedByIdx) : null;
 
-    const allShipToIndices = lines.reduce<number[]>((acc, l, i) => { if (l === "Ship To:") acc.push(i); return acc; }, []);
-    console.log("[parseCostPdf] All Ship To occurrences:", allShipToIndices.map(i => lines.slice(i, i + 8)));
-
-    const shipToIdx = lines.findIndex((l) => l === "Ship To:");
-    const shipToCity = shipToIdx >= 0 ? extractCityFromAddress(lines, shipToIdx) : null;
-    console.log("[parseCostPdf] extracted city:", shipToCity);
+    // The PDF text extractor outputs labels before data due to table column ordering.
+    // "Ship To:" label appears before the Sold To address data, so the first city-state
+    // pattern belongs to Sold To (e.g. Bucklin). The second city-state is the actual Ship To city.
+    const cityStateLines = lines.filter((l) => /,\s*[A-Z]{2}\b/.test(l));
+    const shipToCity = cityStateLines.length >= 2
+      ? cityStateLines[1].split(",")[0]?.trim() || null
+      : cityStateLines[0]?.split(",")[0]?.trim() || null;
+    console.log("[parseCostPdf] city-state lines:", cityStateLines, "→ location:", shipToCity);
 
     let amount: number | null = null;
     for (let i = lines.length - 1; i >= 0; i -= 1) {
