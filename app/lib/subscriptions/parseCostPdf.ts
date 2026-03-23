@@ -166,17 +166,16 @@ function parseOldStylePages(pages: { text: string }[]): ParsedCostItem[] {
       const preamble = lines.slice(Math.max(0, legalIdx - 10), legalIdx);
 
       let serialNumber: string | null = null;
-      let serialLineIdx = -1;
       for (let j = preamble.length - 1; j >= 0; j--) {
         const combined = preamble[j].match(/([A-Z0-9]{13}|[A-Z0-9]{17})\s+[\d,]+\.\d{2}/i);
-        if (combined) { serialNumber = combined[1]; serialLineIdx = j; break; }
+        if (combined) { serialNumber = combined[1]; break; }
         const standalone = preamble[j].match(/^([A-Z0-9]{13}|[A-Z0-9]{17})$/i);
-        if (standalone) { serialNumber = standalone[1]; serialLineIdx = j; break; }
+        if (standalone) { serialNumber = standalone[1]; break; }
       }
 
-      // Description is the first multi-word line between the serial line and LEGAL NAME:
-      const afterSerial = serialLineIdx >= 0 ? preamble.slice(serialLineIdx + 1) : preamble;
-      const description = afterSerial.find((l) => l.includes(" ") && !l.startsWith("CHARGE/CREDIT")) ?? null;
+      // Description is the first line after ORDER NUMBER: (e.g. SF3)
+      const orderIdx = blockLines.findIndex((l) => l.startsWith("ORDER NUMBER:"));
+      const description = orderIdx >= 0 ? blockLines[orderIdx + 1] ?? null : null;
 
       const customerName = orgName && orgName.toLowerCase() !== "n/a" ? orgName : legalName;
 
