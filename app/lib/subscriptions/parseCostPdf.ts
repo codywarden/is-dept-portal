@@ -91,7 +91,7 @@ function parseNewStyle(pages: { text: string }[]): ParsedCostItem[] {
     const shipToCity = cityStateLines.length >= 2
       ? cityStateLines[1].split(",")[0]?.trim() || null
       : cityStateLines[0]?.split(",")[0]?.trim() || null;
-    console.log("[parseCostPdf] city-state lines:", cityStateLines, "→ location:", shipToCity);
+
 
     let amount: number | null = null;
     for (let i = lines.length - 1; i >= 0; i -= 1) {

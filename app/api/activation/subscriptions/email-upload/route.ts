@@ -470,7 +470,6 @@ export async function POST(req: NextRequest) {
       : null;
 
     const allEntries = Array.from(form.entries());
-    console.log("[email-upload] form keys:", allEntries.map(([k, v]) => `${k}=${v instanceof File ? `File(${v.size},${v.type})` : String(v).slice(0, 100)}`));
 
     const directFiles = allEntries
       .map(([, value]) => value)
@@ -487,10 +486,8 @@ export async function POST(req: NextRequest) {
       urlStrings.map(async (url) => {
         try {
           const res = await fetch(url);
-          console.log(`[email-upload] fetch ${url.slice(0, 60)} → status=${res.status} type=${res.headers.get("content-type")}`);
           if (!res.ok) return null;
           const blob = await res.blob();
-          console.log(`[email-upload] blob size=${blob.size} type=${blob.type}`);
           const disposition = res.headers.get("content-disposition") ?? "";
           const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)/i);
           const fileName = match?.[1]?.trim() || url.split("/").pop()?.split("?")[0] || "attachment.pdf";
