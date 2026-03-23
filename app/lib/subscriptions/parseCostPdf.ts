@@ -141,10 +141,14 @@ function parseOldStylePages(pages: { text: string }[]): ParsedCostItem[] {
     const chargeToIdx = lines.findIndex((l) => l.startsWith("CHARGE/CREDIT TO:"));
     const chargeToCity = chargeToIdx >= 0 ? extractCityFromAddress(lines, chargeToIdx) : null;
 
+    // Invoice number is page-level — from "G/L XXXXXXXX" line
+    const glLine = lines.find((l) => /^G\/L\s+\S+/.test(l));
+    const invoiceNumber = glLine ? glLine.replace(/^G\/L\s+/, "").trim() : null;
+
     for (let i = 0; i < legalIndices.length; i += 1) {
-      const start = legalIndices[i];
+      const legalIdx = legalIndices[i];
       const end = legalIndices[i + 1] ?? lines.length;
-      const blockLines = lines.slice(start, end);
+      const blockLines = lines.slice(legalIdx, end);
       const blockText = blockLines.join("\n");
 
       const legalName = getLineValue(blockLines, "LEGAL NAME:");
@@ -157,15 +161,22 @@ function parseOldStylePages(pages: { text: string }[]): ParsedCostItem[] {
       const startDate = getLineValue(blockLines, "START DATE:");
       const endDate = getLineValue(blockLines, "END DATE:");
 
-      const orderIdx = blockLines.findIndex((l) => l.startsWith("ORDER NUMBER:"));
-      const description = orderIdx >= 0 ? blockLines[orderIdx + 1] ?? null : null;
+      // Serial number and description appear BEFORE "LEGAL NAME:" in the PDF.
+      // Look back up to 10 lines to find them.
+      const preamble = lines.slice(Math.max(0, legalIdx - 10), legalIdx);
 
-      const serialFromAmountLine = blockLines
-        .map((l) => l.trim())
-        .find((l) => /\b\d{1,3}(?:,\d{3})*\.\d{2}\b/.test(l));
-      const serialCandidate = serialFromAmountLine
-        ? extractSerialFromAmountLine(serialFromAmountLine)
-        : null;
+      let serialNumber: string | null = null;
+      let serialLineIdx = -1;
+      for (let j = preamble.length - 1; j >= 0; j--) {
+        const combined = preamble[j].match(/([A-Z0-9]{13}|[A-Z0-9]{17})\s+[\d,]+\.\d{2}/i);
+        if (combined) { serialNumber = combined[1]; serialLineIdx = j; break; }
+        const standalone = preamble[j].match(/^([A-Z0-9]{13}|[A-Z0-9]{17})$/i);
+        if (standalone) { serialNumber = standalone[1]; serialLineIdx = j; break; }
+      }
+
+      // Description is the first multi-word line between the serial line and LEGAL NAME:
+      const afterSerial = serialLineIdx >= 0 ? preamble.slice(serialLineIdx + 1) : preamble;
+      const description = afterSerial.find((l) => l.includes(" ") && !l.startsWith("CHARGE/CREDIT")) ?? null;
 
       const customerName = orgName && orgName.toLowerCase() !== "n/a" ? orgName : legalName;
 
@@ -179,10 +190,10 @@ function parseOldStylePages(pages: { text: string }[]): ParsedCostItem[] {
         ordered_by: null,
         amount,
         currency: "USD",
-        invoice_number: null,
+        invoice_number: invoiceNumber,
         order_number: orderNumber,
         description,
-        serial_number: serialCandidate ?? null,
+        serial_number: serialNumber,
         contract_start: startDate ? parseDate(startDate) : null,
         contract_end: endDate ? parseDate(endDate) : null,
         due_date: null,
@@ -277,14 +288,6 @@ function isSerialValue(value: string) {
   return /^[A-Z0-9]{13}$|^[A-Z0-9]{17}$/i.test(value.replace(/\s+/g, ""));
 }
 
-function extractSerialFromAmountLine(line: string) {
-  const match = line.match(/([A-Z0-9]{13}|[A-Z0-9]{17})\s+\d{1,3}(?:,\d{3})*\.\d{2}/i);
-  if (match) return match[1];
-
-  const tokens = line.split(/\s+/).filter(Boolean);
-  const candidate = tokens.find((t) => isSerialValue(t));
-  return candidate ?? null;
-}
 
 function pickRetailCustomer(lines: string[], retailIdx: number) {
   for (let i = retailIdx - 1; i >= Math.max(0, retailIdx - 5); i -= 1) {
