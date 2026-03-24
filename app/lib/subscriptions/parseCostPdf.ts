@@ -23,7 +23,7 @@ type ParseResult = {
   items: ParsedCostItem[];
 };
 
-const moneyRegex = /\b\d{1,3}(?:,\d{3})*\.\d{2}\b/;
+const moneyRegex = /\b(?:\d{1,3}(?:,\d{3})*|\d{4,})\.\d{2}\b/;
 
 export function detectCostPdfStyle(text: string): "new" | "old" {
   if (text.includes("DEBIT/CREDIT MEMO")) return "old";
