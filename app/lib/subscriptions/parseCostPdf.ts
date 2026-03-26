@@ -167,7 +167,7 @@ function parseOldStylePages(pages: { text: string }[]): ParsedCostItem[] {
 
       let serialNumber: string | null = null;
       for (let j = preamble.length - 1; j >= 0; j--) {
-        const combined = preamble[j].match(/([A-Z0-9]{13}|[A-Z0-9]{17})\s+[\d,]+\.\d{2}/i);
+        const combined = preamble[j].match(/([A-Z0-9]{13}|[A-Z0-9]{17})\s+[\d,]*\.\d{2}/i);
         if (combined) { serialNumber = combined[1]; break; }
         const standalone = preamble[j].match(/^([A-Z0-9]{13}|[A-Z0-9]{17})$/i);
         if (standalone) { serialNumber = standalone[1]; break; }
@@ -193,8 +193,8 @@ function parseOldStylePages(pages: { text: string }[]): ParsedCostItem[] {
         order_number: orderNumber,
         description,
         serial_number: serialNumber,
-        contract_start: startDate ? parseDate(startDate) : null,
-        contract_end: endDate ? parseDate(endDate) : null,
+        contract_start: startDate && startDate !== "-" ? parseDate(startDate) : null,
+        contract_end: endDate && endDate !== "-" ? parseDate(endDate) : null,
         due_date: null,
         raw_text: blockText,
       });
