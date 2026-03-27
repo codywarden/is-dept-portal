@@ -219,7 +219,7 @@ function findLocation(
   for (const line of lines) {
     const code = line.match(/ISACTIVE\d+/i)?.[0]?.toUpperCase();
     if (!code) continue;
-    const mapped = locationCodeMap[code];
+    const mapped = locationCodeMap[code] ?? DEFAULT_LOCATION_CODE_MAP[code];
     if (mapped) return mapped;
   }
 
@@ -290,11 +290,20 @@ function extractItems(
     const isActiveCode = line.match(/ISACTIVE\d+/i)?.[0]?.toUpperCase() ?? null;
     const hasActivation = /IS\s*ACTIVATION/i.test(line) || Boolean(isActiveCode);
     if (hasActivation) {
-      const linePrice = findBestAmount([line]);
+      // Look at this line + next few lines for price, but strip ISACTIVE codes so
+      // the trailing digit (e.g. the "5" in ISACTIVE5) isn't picked up as a price.
+      const contextLines = [line.replace(/ISACTIVE\d+/gi, "")];
+      for (let j = i + 1; j < Math.min(lines.length, i + 6); j++) {
+        if (/IS\s*ACTIVATION/i.test(lines[j]) || /ISACTIVE\d+/i.test(lines[j])) break;
+        contextLines.push(lines[j]);
+      }
+      const linePrice = findBestAmount(contextLines);
       const quantity = parseQuantity(line);
       const descriptionMatch = line.match(/IS\s*ACTIVATION\s*[^\d]*\d*/i)?.[0]?.trim();
       const lineSerial = extractSerial(line);
-      const lineLocation = isActiveCode ? locationCodeMap[isActiveCode] ?? null : null;
+      const lineLocation = isActiveCode
+        ? (locationCodeMap[isActiveCode] ?? DEFAULT_LOCATION_CODE_MAP[isActiveCode] ?? null)
+        : null;
 
       const repeat = quantity && quantity > 1 ? Math.floor(quantity) : 1;
       const newItems: ParsedSoldItem[] = [];
