@@ -284,12 +284,24 @@ function extractItems(
 ) {
   const items: ParsedSoldItem[] = [];
   let lastItems: ParsedSoldItem[] = [];
+  let lastWasActivationCode = false;
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     const isActiveCode = line.match(/ISACTIVE\d+/i)?.[0]?.toUpperCase() ?? null;
-    const hasActivation = /IS\s*ACTIVATION/i.test(line) || Boolean(isActiveCode);
+    const isDescriptionOnly = !isActiveCode && /IS\s*ACTIVATION/i.test(line);
+    const hasActivation = Boolean(isActiveCode) || isDescriptionOnly;
+
     if (hasActivation) {
+      // "IS ACTIVATIONS 5" is the description column of the same row as "ISACTIVE5".
+      // Skip it to avoid creating a duplicate item with no location/code.
+      if (isDescriptionOnly && lastWasActivationCode) {
+        lastWasActivationCode = false;
+        continue;
+      }
+
+      lastWasActivationCode = Boolean(isActiveCode);
+
       // Look at this line + next few lines for price, but strip ISACTIVE codes so
       // the trailing digit (e.g. the "5" in ISACTIVE5) isn't picked up as a price.
       const contextLines = [line.replace(/ISACTIVE\d+/gi, "")];
