@@ -14,16 +14,16 @@ const getServiceClient = () =>
 async function getUserRole() {
   const supabase = await createSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) return { user: null, role: null as null };
+  if (!authData.user) return { user: null, role: null as null, canAutoReconcile: false };
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, page_permissions")
     .eq("id", authData.user.id)
     .single();
-  return {
-    user: authData.user,
-    role: (profile?.role ?? "viewer") as "admin" | "verifier" | "viewer",
-  };
+  const role = (profile?.role ?? "viewer") as "admin" | "verifier" | "viewer";
+  const perms = (profile?.page_permissions ?? {}) as Record<string, boolean>;
+  const canAutoReconcile = role === "admin" || perms["activation/auto-reconcile"] === true;
+  return { user: authData.user, role, canAutoReconcile };
 }
 
 function normalize(value: string | null | undefined) {
@@ -40,9 +40,9 @@ function daysBetween(a: string | null, b: string | null): number | null {
 
 export async function POST() {
   try {
-    const { user, role } = await getUserRole();
+    const { user, canAutoReconcile } = await getUserRole();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    if (role !== "admin" && role !== "verifier") {
+    if (!canAutoReconcile) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

@@ -54,6 +54,7 @@ const PAGE_GROUPS: {
       { key: "activation/location-summary", label: "Location Summary" },
       { key: "activation/change-location", label: "Change Location" },
       { key: "activation/reconcile", label: "Reconcile" },
+      { key: "activation/auto-reconcile", label: "Auto Reconcile" },
       { key: "activation/check", label: "Business System Numbers" },
     ],
   },

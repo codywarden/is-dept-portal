@@ -49,7 +49,7 @@ type LocationChangeRequest = {
 
 const SOLD_TO_CHANGE_LOCATION_KEY = "sold_to_change_location_enabled";
 
-export default function ReconcileClient({ role }: { role: Role }) {
+export default function ReconcileClient({ role, canAutoReconcile }: { role: Role; canAutoReconcile?: boolean }) {
   const [costItems, setCostItems] = useState<CostItem[]>([]);
   const [soldItems, setSoldItems] = useState<SoldItem[]>([]);
   const [reconcliedItemLinks, setReconcliedItemLinks] = useState<Record<string, string>>({});
@@ -547,7 +547,7 @@ export default function ReconcileClient({ role }: { role: Role }) {
         </div>
       </section>
 
-      {(role === "admin" || role === "verifier") && (
+      {canAutoReconcile && (
         <section style={{ marginBottom: 16 }}>
           <button
             onClick={runAutoReconcile}
