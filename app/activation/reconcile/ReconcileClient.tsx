@@ -14,6 +14,7 @@ type CostItem = {
   item_number: string | null;
   location: string | null;
   matched_sold_item_id: string | null;
+  auto_reconclied?: boolean | null;
   file?: { upload_number: number | null; original_filename: string | null } | null;
 };
 
@@ -27,6 +28,7 @@ type SoldItem = {
   item_number: string | null;
   location: string | null;
   matched_cost_item_id: string | null;
+  auto_reconclied?: boolean | null;
   file?: { upload_number: number | null; original_filename: string | null } | null;
 };
 
@@ -66,6 +68,7 @@ export default function ReconcileClient({ role }: { role: Role }) {
     costItem: CostItem;
     soldItem: SoldItem;
   } | null>(null);
+  const [autoReconciling, setAutoReconciling] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -274,6 +277,37 @@ export default function ReconcileClient({ role }: { role: Role }) {
       console.error(err);
       setMsg("Failed to mark Not Reconclied");
       setLoading(false);
+    }
+  }
+
+  async function runAutoReconcile() {
+    if (!window.confirm("Run Auto Reconcile? This will match all items where Serial #, Location, and start date (within the configured day range) all match.")) return;
+    setAutoReconciling(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/activation/subscriptions/auto-reconcile", {
+        method: "POST",
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setMsg(j?.error ?? "Auto Reconcile failed");
+        return;
+      }
+      const count = j.matched ?? 0;
+      setMsg(count > 0 ? `Auto Reconcile complete — ${count} item${count === 1 ? "" : "s"} matched.` : "Auto Reconcile complete — no new matches found.");
+
+      // Reload items to reflect changes
+      const itemsRes = await fetch("/api/activation/subscriptions/reconcile-items");
+      const itemsJ = (await itemsRes.json()) as ReconcileItemsResponse & { error?: string };
+      if (itemsRes.ok) {
+        setCostItems(itemsJ.costItems ?? []);
+        setSoldItems(itemsJ.soldItems ?? []);
+      }
+    } catch (err) {
+      console.error(err);
+      setMsg("Auto Reconcile failed");
+    } finally {
+      setAutoReconciling(false);
     }
   }
 
@@ -513,6 +547,27 @@ export default function ReconcileClient({ role }: { role: Role }) {
         </div>
       </section>
 
+      {(role === "admin" || role === "verifier") && (
+        <section style={{ marginBottom: 16 }}>
+          <button
+            onClick={runAutoReconcile}
+            disabled={autoReconciling || loading}
+            style={{
+              padding: "10px 20px",
+              background: "#367C2B",
+              color: "#FFC72C",
+              borderRadius: 8,
+              border: "2px solid #FFC72C",
+              cursor: autoReconciling || loading ? "not-allowed" : "pointer",
+              fontWeight: 800,
+              fontSize: 14,
+            }}
+          >
+            {autoReconciling ? "Running Auto Reconcile…" : "Auto Reconcile"}
+          </button>
+        </section>
+      )}
+
       <section style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
         <label style={{ fontWeight: 800, color: "#111827" }}>Filter:</label>
         <select
@@ -635,6 +690,11 @@ export default function ReconcileClient({ role }: { role: Role }) {
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
                   ${item.amount?.toFixed(2) ?? "0.00"}
                 </div>
+                {item.auto_reconclied && (
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#6366f1", marginBottom: 6, letterSpacing: "0.04em" }}>
+                    AUTO REC.
+                  </div>
+                )}
                 {!isReconclied && (
                   (() => {
                     const selectedSoldId = reconcliedItemLinks[item.id] || "";
@@ -893,9 +953,14 @@ export default function ReconcileClient({ role }: { role: Role }) {
                 <div style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
                   {item.description || "—"}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: item.auto_reconclied ? 6 : 0 }}>
                   ${item.retail_price?.toFixed(2) ?? "0.00"}
                 </div>
+                {item.auto_reconclied && (
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#6366f1", marginBottom: 6, letterSpacing: "0.04em" }}>
+                    AUTO REC.
+                  </div>
+                )}
                 {item.matched_cost_item_id && role === "admin" && (
                   <button
                     className="btn-danger btn-sm"

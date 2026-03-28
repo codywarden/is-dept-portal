@@ -376,6 +376,13 @@ end;
 $$ language plpgsql;
 
 
+-- Auto-reconcile flag columns
+alter table if exists sa_subscription_cost_items
+  add column if not exists auto_reconclied boolean not null default false;
+
+alter table if exists sa_subscription_sold_items
+  add column if not exists auto_reconclied boolean not null default false;
+
 -- XID to IS Consultant name mappings
 create table if not exists sa_xid_consultants (
   id uuid primary key default gen_random_uuid(),

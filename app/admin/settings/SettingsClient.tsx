@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 const ACCOUNT_SEGMENT_LENGTHS = [2, 2, 3, 1] as const;
 const SOLD_TO_CHANGE_LOCATION_KEY = "sold_to_change_location_enabled";
+const AUTO_RECONCILE_DAYS_KEY = "auto_reconcile_days";
 
 type AdminActionLog = {
   id: string;
@@ -46,8 +47,12 @@ export default function SettingsClient() {
   const [featureMsg, setFeatureMsg] = useState<string | null>(null);
   const [savingLocationAccount, setSavingLocationAccount] = useState(false);
   const [savingSoldLocationAccount, setSavingSoldLocationAccount] = useState(false);
-  const [openSection, setOpenSection] = useState<"locations" | "codes" | "xidConsultants" | "accounts" | "soldAccounts" | "features" | "invoiceClear" | "auditLogs" | null>(null);
+  const [openSection, setOpenSection] = useState<"locations" | "codes" | "xidConsultants" | "accounts" | "soldAccounts" | "autoReconcile" | "features" | "invoiceClear" | "auditLogs" | null>(null);
+  const [activationGroupOpen, setActivationGroupOpen] = useState(false);
+  const [systemGroupOpen, setSystemGroupOpen] = useState(false);
   const [soldToChangeLocationEnabled, setSoldToChangeLocationEnabled] = useState(false);
+  const [autoReconcileDays, setAutoReconcileDays] = useState("60");
+  const [autoReconcileMsg, setAutoReconcileMsg] = useState<string | null>(null);
   const [savingFeatureSettings, setSavingFeatureSettings] = useState(false);
   const [orderNumberToClear, setOrderNumberToClear] = useState("");
   const [orderClearMsg, setOrderClearMsg] = useState<string | null>(null);
@@ -99,6 +104,20 @@ export default function SettingsClient() {
         const j = await res.json();
         const row = (j?.data ?? [])[0] as { value?: string | null } | undefined;
         setSoldToChangeLocationEnabled(row?.value === "true");
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/app-settings?key=${AUTO_RECONCILE_DAYS_KEY}`);
+        if (!res.ok) return;
+        const j = await res.json();
+        const row = (j?.data ?? [])[0] as { value?: string | null } | undefined;
+        if (row?.value) setAutoReconcileDays(row.value);
       } catch {
         // ignore
       }
@@ -354,6 +373,27 @@ export default function SettingsClient() {
       setFeatureMsg("Feature settings saved ✅");
     } catch {
       setFeatureMsg("Failed to save feature settings");
+    } finally {
+      setSavingFeatureSettings(false);
+    }
+  }
+
+  async function saveAutoReconcileDays() {
+    setAutoReconcileMsg(null);
+    const days = parseInt(autoReconcileDays, 10);
+    if (isNaN(days) || days < 1) return setAutoReconcileMsg("Days must be a number greater than 0");
+    setSavingFeatureSettings(true);
+    try {
+      const res = await fetch("/api/admin/app-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: AUTO_RECONCILE_DAYS_KEY, value: String(days) }),
+      });
+      const j = await res.json();
+      if (!res.ok) return setAutoReconcileMsg(j?.error ?? "Failed to save");
+      setAutoReconcileMsg("Saved ✅");
+    } catch {
+      setAutoReconcileMsg("Failed to save");
     } finally {
       setSavingFeatureSettings(false);
     }
@@ -700,7 +740,19 @@ export default function SettingsClient() {
           )}
         </section>
 
-        <section style={{ marginBottom: 16, background: "#f9fafb", borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)" }}>
+        <div style={{ marginBottom: 16, background: "#f9fafb", borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)" }}>
+          <button
+            className="btn-secondary"
+            onClick={() => setActivationGroupOpen((prev) => !prev)}
+            style={{ width: "100%", padding: "12px 14px", borderRadius: 12, textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", fontWeight: 800 }}
+          >
+            <span>Activation Setup</span>
+            <span>{activationGroupOpen ? "▾" : "▸"}</span>
+          </button>
+          {activationGroupOpen && (
+            <div style={{ padding: "8px 8px 8px" }}>
+
+        <section style={{ marginBottom: 8, background: "#f9fafb", borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)" }}>
           <button
             className="btn-secondary"
             onClick={() => setOpenSection((prev) => (prev === "codes" ? null : "codes"))}
@@ -1212,6 +1264,46 @@ export default function SettingsClient() {
           )}
         </section>
 
+        <section style={{ marginBottom: 8, background: "#f9fafb", borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)" }}>
+          <button
+            className="btn-secondary"
+            onClick={() => setOpenSection((prev) => (prev === "autoReconcile" ? null : "autoReconcile"))}
+            style={{ width: "100%", padding: "12px 14px", borderRadius: 12, textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", fontWeight: 800 }}
+          >
+            <span>Auto Reconcile Settings</span>
+            <span>{openSection === "autoReconcile" ? "▾" : "▸"}</span>
+          </button>
+          {openSection === "autoReconcile" && (
+            <div style={{ padding: "14px 14px 16px" }}>
+              <p style={{ marginBottom: 16, color: "#374151", fontSize: 14 }}>
+                Maximum days allowed between the cost contract start date and sold invoice date for an auto-reconcile match. Default is 60.
+              </p>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+                <input
+                  type="number"
+                  min={1}
+                  value={autoReconcileDays}
+                  onChange={(e) => setAutoReconcileDays(e.target.value)}
+                  style={{ padding: 8, borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)", width: 100, background: "white", color: "#111827", fontWeight: 600 }}
+                />
+                <span style={{ fontWeight: 600, color: "#374151" }}>days</span>
+                <button
+                  className="btn-primary btn-sm"
+                  onClick={saveAutoReconcileDays}
+                  disabled={savingFeatureSettings}
+                >
+                  Save
+                </button>
+              </div>
+              {autoReconcileMsg && <div style={{ color: "#14532d", fontWeight: 700 }}>{autoReconcileMsg}</div>}
+            </div>
+          )}
+        </section>
+
+            </div>
+          )}
+        </div>
+
         <section style={{ marginBottom: 24, background: "#f9fafb", borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)" }}>
           <button
             className="btn-secondary"
@@ -1246,12 +1338,25 @@ export default function SettingsClient() {
                 <span className="toggle-slider" />
                 <span>Enable Sold-To Change Location</span>
               </label>
+
               {featureMsg && <div style={{ color: "#14532d", fontWeight: 700 }}>{featureMsg}</div>}
             </div>
           )}
         </section>
 
-        <section style={{ marginBottom: 24, background: "#f9fafb", borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)" }}>
+        <div style={{ marginBottom: 16, background: "#f9fafb", borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)" }}>
+          <button
+            className="btn-secondary"
+            onClick={() => setSystemGroupOpen((prev) => !prev)}
+            style={{ width: "100%", padding: "12px 14px", borderRadius: 12, textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", fontWeight: 800 }}
+          >
+            <span>System</span>
+            <span>{systemGroupOpen ? "▾" : "▸"}</span>
+          </button>
+          {systemGroupOpen && (
+            <div style={{ padding: "8px 8px 8px" }}>
+
+        <section style={{ marginBottom: 8, background: "#f9fafb", borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)" }}>
           <button
             className="btn-secondary"
             onClick={() => setOpenSection((prev) => (prev === "invoiceClear" ? null : "invoiceClear"))}
@@ -1729,6 +1834,10 @@ export default function SettingsClient() {
             </div>
           )}
         </section>
+
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -31,7 +31,7 @@ export async function GET() {
     // Get all cost items (filter on client)
     const { data: costItems, error: costError } = await supabase
       .from("sa_subscription_cost_items")
-      .select("id, customer_name, serial_number, description, amount, invoice_number, item_number, location, matched_sold_item_id, file:sa_subscription_cost_files(upload_number, original_filename)")
+      .select("id, customer_name, serial_number, description, amount, invoice_number, item_number, location, matched_sold_item_id, auto_reconclied, file:sa_subscription_cost_files(upload_number, original_filename)")
       .order("created_at", { ascending: true });
 
     if (costError) {
@@ -41,7 +41,7 @@ export async function GET() {
     // Get all sold items (filter on client)
     const { data: soldItems, error: soldError } = await supabase
       .from("sa_subscription_sold_items")
-      .select("id, customer_name, serial_number, description, retail_price, invoice_number, item_number, location, matched_cost_item_id, file:sa_subscription_sold_files(upload_number, original_filename)")
+      .select("id, customer_name, serial_number, description, retail_price, invoice_number, item_number, location, matched_cost_item_id, auto_reconclied, file:sa_subscription_sold_files(upload_number, original_filename)")
       .order("created_at", { ascending: true });
 
     if (soldError) {
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
 
       const costUpdate = await supabase
         .from("sa_subscription_cost_items")
-        .update({ matched_sold_item_id: null })
+        .update({ matched_sold_item_id: null, auto_reconclied: false })
         .eq("id", costItem.id);
 
       if (costUpdate.error) {
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       if (costItem.matched_sold_item_id) {
         const soldUpdate = await supabase
           .from("sa_subscription_sold_items")
-          .update({ matched_cost_item_id: null })
+          .update({ matched_cost_item_id: null, auto_reconclied: false })
           .eq("id", costItem.matched_sold_item_id);
 
         if (soldUpdate.error) {

@@ -21,6 +21,8 @@ type CostItem = {
   serial_number: string | null;
   item_number?: string | number | null;
   matched_customer_id: string | null;
+  matched_sold_item_id?: string | null;
+  auto_reconclied?: boolean | null;
   matched_customer?: { name?: string | null } | null;
   file?: { upload_number?: number | null; original_filename?: string | null; uploaded_at?: string | null } | null;
   created_at: string | null;
@@ -144,8 +146,8 @@ export default function CostAccountClient({ role }: { role: Role }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return items.filter((it) => {
-      if (filter === "reconclied" && !it.matched_customer_id) return false;
-      if (filter === "not_reconclied" && it.matched_customer_id) return false;
+      if (filter === "reconclied" && !it.matched_customer_id && !it.matched_sold_item_id) return false;
+      if (filter === "not_reconclied" && (it.matched_customer_id || it.matched_sold_item_id)) return false;
       if (selectedLocation && (it.location ?? "") !== selectedLocation) return false;
 
       if (!q) return true;
@@ -173,8 +175,8 @@ export default function CostAccountClient({ role }: { role: Role }) {
   }, [items, query, filter, selectedLocation]);
 
   const total = filtered.reduce((sum, it) => sum + (it.amount ?? 0), 0);
-  const reconcliedCount = filtered.filter((it) => it.matched_customer_id).length;
-  const notReconcliedCount = filtered.length - reconcliedCount;
+  const reconcliedCount = items.filter((it) => it.matched_customer_id || it.matched_sold_item_id).length;
+  const notReconcliedCount = items.length - reconcliedCount;
 
   const locationTotals = useMemo(() => {
     const map: Record<string, number> = {};
@@ -504,13 +506,18 @@ export default function CostAccountClient({ role }: { role: Role }) {
                 style={{
                   textAlign: "right",
                   fontWeight: 800,
-                  color: it.matched_customer_id ? "#16a34a" : "#dc2626",
+                  color: (it.matched_customer_id || it.matched_sold_item_id) ? "#16a34a" : "#dc2626",
                 }}
               >
                 {formatMoney(it.amount)}
-                <div style={{ fontSize: 11, color: it.matched_customer_id ? "#16a34a" : "#dc2626" }}>
-                  {it.matched_customer_id ? "Reconclied" : "Not Reconclied"}
+                <div style={{ fontSize: 11, color: (it.matched_customer_id || it.matched_sold_item_id) ? "#16a34a" : "#dc2626" }}>
+                  {(it.matched_customer_id || it.matched_sold_item_id) ? "Reconclied" : "Not Reconclied"}
                 </div>
+                {it.auto_reconclied && (
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#6366f1", marginTop: 3, letterSpacing: "0.04em" }}>
+                    AUTO REC.
+                  </div>
+                )}
                 {role === "admin" && (
                   <div style={{ marginTop: 8, display: "grid", gap: 6, justifyItems: "end" }}>
                     {editingId === it.id ? (
