@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
       const matchId = matchCustomerId(nameForMatch, normalizedMap, customerList);
       return {
         ...item,
-        location: canonicalizeLocation(item.location, locationNameMap),
+        location: canonicalizeLocation(item.location, locationNameMap) ?? item.location ?? null,
         matched_customer_id: matchId,
       };
     });
