@@ -204,7 +204,7 @@ async function processCostFile(params: {
 
     return {
       ...item,
-      location: canonicalizeLocation(item.location, locationNameMap),
+      location: canonicalizeLocation(item.location, locationNameMap) ?? item.location ?? null,
       matched_customer_id: matchId,
     };
   });
@@ -342,7 +342,7 @@ async function processSoldFile(params: {
     const matchId = matchCustomerId(nameForMatch, normalizedMap, customerList);
     return {
       ...item,
-      location: canonicalizeLocation(item.location, locationNameMap),
+      location: canonicalizeLocation(item.location, locationNameMap) ?? item.location ?? null,
       matched_customer_id: matchId,
     };
   });
