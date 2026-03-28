@@ -52,6 +52,7 @@ export default function CostAccountClient({ role }: { role: Role }) {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [selectedItemForLocation, setSelectedItemForLocation] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [xidConsultants, setXidConsultants] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -115,6 +116,25 @@ export default function CostAccountClient({ role }: { role: Role }) {
         const j = await res.json();
         const rows = j?.data ?? [];
         setLocations(rows.map((r: { name: string }) => r.name));
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/xid-consultants");
+        if (!res.ok) return;
+        const j = await res.json();
+        const rows = (j?.data ?? []) as Array<{ xid: string; name: string }>;
+        setXidConsultants(
+          rows.reduce<Record<string, string>>((acc, row) => {
+            acc[row.xid.toUpperCase()] = row.name;
+            return acc;
+          }, {})
+        );
       } catch {
         // ignore
       }
@@ -437,7 +457,13 @@ export default function CostAccountClient({ role }: { role: Role }) {
                   Order #: {it.order_number ?? "—"}
                 </div>
                 <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 3 }}>
-                  Ordered By: {it.ordered_by ?? "—"}
+                  Ordered By: {it.ordered_by
+                    ? (() => {
+                        const xid = it.ordered_by.trim().toUpperCase();
+                        const name = xidConsultants[xid];
+                        return name ? `${name} (${it.ordered_by})` : it.ordered_by;
+                      })()
+                    : "—"}
                 </div>
                 <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 3 }}>
                   Location: {it.location ?? "—"}

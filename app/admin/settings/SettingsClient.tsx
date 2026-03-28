@@ -46,7 +46,7 @@ export default function SettingsClient() {
   const [featureMsg, setFeatureMsg] = useState<string | null>(null);
   const [savingLocationAccount, setSavingLocationAccount] = useState(false);
   const [savingSoldLocationAccount, setSavingSoldLocationAccount] = useState(false);
-  const [openSection, setOpenSection] = useState<"locations" | "codes" | "accounts" | "soldAccounts" | "features" | "invoiceClear" | "auditLogs" | null>(null);
+  const [openSection, setOpenSection] = useState<"locations" | "codes" | "xidConsultants" | "accounts" | "soldAccounts" | "features" | "invoiceClear" | "auditLogs" | null>(null);
   const [soldToChangeLocationEnabled, setSoldToChangeLocationEnabled] = useState(false);
   const [savingFeatureSettings, setSavingFeatureSettings] = useState(false);
   const [orderNumberToClear, setOrderNumberToClear] = useState("");
@@ -69,6 +69,11 @@ export default function SettingsClient() {
   const [auditLogMsg, setAuditLogMsg] = useState<string | null>(null);
   const [auditLogLimit, setAuditLogLimit] = useState(50);
   const [auditLogLoading, setAuditLogLoading] = useState(false);
+  const [xidConsultants, setXidConsultants] = useState<{ id: string; xid: string; name: string }[]>([]);
+  const [xidConsultantsLoading, setXidConsultantsLoading] = useState(true);
+  const [newXid, setNewXid] = useState("");
+  const [newXidName, setNewXidName] = useState("");
+  const [xidMsg, setXidMsg] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -111,6 +116,21 @@ export default function SettingsClient() {
         // ignore
       } finally {
         setCodesLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/xid-consultants");
+        if (!res.ok) return;
+        const j = await res.json();
+        setXidConsultants(j?.data ?? []);
+      } catch {
+        // ignore
+      } finally {
+        setXidConsultantsLoading(false);
       }
     })();
   }, []);
@@ -218,6 +238,38 @@ export default function SettingsClient() {
     if (!res.ok) return setCodeMsg(j?.error ?? "Failed to delete location code");
     setLocationCodes((prev) => prev.filter((p) => p.id !== id));
     setCodeMsg("Location code removed ✅");
+  }
+
+  async function addXidConsultant() {
+    setXidMsg(null);
+    const xid = newXid.trim().toUpperCase();
+    const name = newXidName.trim();
+    if (!xid || !name) return setXidMsg("XID and name are required");
+    const res = await fetch("/api/admin/xid-consultants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ xid, name }),
+    });
+    const j = await res.json();
+    if (!res.ok) return setXidMsg(j?.error ?? "Failed to add consultant");
+    setXidConsultants((prev) => [j.data, ...prev.filter((p) => p.xid !== j.data.xid)]);
+    setNewXid("");
+    setNewXidName("");
+    setXidMsg("Consultant added ✅");
+  }
+
+  async function deleteXidConsultant(id: string, xid: string) {
+    setXidMsg(null);
+    if (!confirm(`Delete consultant ${xid}?`)) return;
+    const res = await fetch("/api/admin/xid-consultants", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const j = await res.json();
+    if (!res.ok) return setXidMsg(j?.error ?? "Failed to delete consultant");
+    setXidConsultants((prev) => prev.filter((p) => p.id !== id));
+    setXidMsg("Consultant removed ✅");
   }
 
   async function saveAllLocationAccounts() {
@@ -765,6 +817,128 @@ export default function SettingsClient() {
                       <button
                         className="btn-danger btn-sm"
                         onClick={() => deleteLocationCode(row.id, row.code)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section style={{ marginBottom: 16, background: "#f9fafb", borderRadius: 12, border: "1px solid rgba(0,0,0,0.08)" }}>
+          <button
+            className="btn-secondary"
+            onClick={() => setOpenSection((prev) => (prev === "xidConsultants" ? null : "xidConsultants"))}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              borderRadius: 12,
+              textAlign: "left",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              fontWeight: 800,
+            }}
+          >
+            <span>XID to IS Consultant Name</span>
+            <span>{openSection === "xidConsultants" ? "▾" : "▸"}</span>
+          </button>
+          {openSection === "xidConsultants" && (
+            <div style={{ padding: "14px 14px 16px" }}>
+              <p style={{ marginBottom: 16, color: "#374151", fontSize: 14 }}>
+                Map an XID (e.g., JSMITH) to an IS Consultant&apos;s full name. Used to display names on the cost page.
+              </p>
+
+              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                <input
+                  value={newXid}
+                  onChange={(e) => setNewXid(e.target.value)}
+                  placeholder="XID (e.g., JSMITH)"
+                  style={{
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    minWidth: 160,
+                    background: "white",
+                    color: "#111827",
+                    fontWeight: 500,
+                  }}
+                />
+                <input
+                  value={newXidName}
+                  onChange={(e) => setNewXidName(e.target.value)}
+                  placeholder="Full name"
+                  style={{
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    minWidth: 200,
+                    background: "white",
+                    color: "#111827",
+                    fontWeight: 500,
+                  }}
+                />
+                <button
+                  className="btn-primary"
+                  onClick={addXidConsultant}
+                  style={{
+                    padding: "10px 16px",
+                    background: "#FFC72C",
+                    color: "#111827",
+                    borderRadius: 8,
+                    border: "2px solid #FFC72C",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+
+              {xidMsg && (
+                <div
+                  style={{
+                    marginBottom: 16,
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    background: "#f9fafb",
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    color: "#111827",
+                    fontWeight: 700,
+                  }}
+                >
+                  {xidMsg}
+                </div>
+              )}
+
+              {xidConsultantsLoading ? (
+                <div style={{ color: "#6b7280" }}>Loading consultants...</div>
+              ) : xidConsultants.length === 0 ? (
+                <div style={{ color: "#6b7280" }}>No consultants mapped yet.</div>
+              ) : (
+                <div style={{ display: "grid", gap: 8 }}>
+                  {xidConsultants.map((row) => (
+                    <div
+                      key={row.id}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        background: "#fff",
+                        padding: 12,
+                        borderRadius: 8,
+                        border: "1px solid rgba(0,0,0,0.06)",
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, color: "#000000" }}>
+                        {row.xid} → {row.name}
+                      </div>
+                      <button
+                        className="btn-danger btn-sm"
+                        onClick={() => deleteXidConsultant(row.id, row.xid)}
                       >
                         Delete
                       </button>

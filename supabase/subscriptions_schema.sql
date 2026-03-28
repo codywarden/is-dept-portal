@@ -347,7 +347,8 @@ declare
     'sa_location_codes',
     'sa_location_account_numbers',
     'sa_location_sold_account_numbers',
-    'sa_app_settings'
+    'sa_app_settings',
+    'sa_xid_consultants'
   ];
 begin
   if confirm_text <> 'CLEAR_IS_DEPT_TEST_DATA' then
@@ -374,6 +375,17 @@ begin
 end;
 $$ language plpgsql;
 
+
+-- XID to IS Consultant name mappings
+create table if not exists sa_xid_consultants (
+  id uuid primary key default gen_random_uuid(),
+  xid text unique not null,
+  name text not null,
+  created_at timestamptz default now()
+);
+
+create index if not exists sa_xid_consultants_xid_idx
+  on sa_xid_consultants(xid);
 
 -- Business system check numbers
 create table if not exists sa_business_check_numbers (
@@ -411,4 +423,5 @@ alter table sa_development_notes enable row level security;
 alter table sa_admin_action_logs enable row level security;
 alter table sa_location_change_requests enable row level security;
 alter table sa_location_change_print_files enable row level security;
+alter table sa_xid_consultants enable row level security;
 alter table sa_business_check_numbers enable row level security;
