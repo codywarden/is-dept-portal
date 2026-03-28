@@ -70,13 +70,10 @@ export async function POST(req: NextRequest) {
     });
 
     const text = await parsePdf(Buffer.from(fileBuffer));
-    console.log("[upload-sold] locationCodeMap:", JSON.stringify(locationCodeMap));
-    console.log("[upload-sold] knownLocations:", JSON.stringify(knownLocations));
     const { items } = parseSoldPdfText(text, {
       locationCodeMap: Object.keys(locationCodeMap).length > 0 ? locationCodeMap : undefined,
       knownLocations: knownLocations.length > 0 ? knownLocations : undefined,
     });
-    console.log("[upload-sold] parsed items locations:", items.map(i => i.location));
 
     const { data: customers, error: customersError } = await supabaseAdmin
       .from("sa_customers")

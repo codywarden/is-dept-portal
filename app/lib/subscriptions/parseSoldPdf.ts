@@ -66,7 +66,6 @@ export function parseSoldPdfText(text: string, options: ParseSoldOptions = {}): 
   const soldBy = soldByRaw ? formatSoldBy(soldByRaw) : null;
 
   const location = findLocation(lines, locationCodeMap, knownLocations);
-
   const serialNumber = findFirstMatch(lines, [
     /serial\s*(?:#|no\.?|number)?\s*[:#]?\s*([A-Za-z0-9-]+)/i,
     /s\/?n\s*[:#]?\s*([A-Za-z0-9-]+)/i,
@@ -217,7 +216,7 @@ function findLocation(
   }
 
   for (const line of lines) {
-    const code = line.match(/ISACTIVE\d+/i)?.[0]?.toUpperCase();
+    const code = line.match(/ISACTIVE\d/i)?.[0]?.toUpperCase();
     if (!code) continue;
     const mapped = locationCodeMap[code] ?? DEFAULT_LOCATION_CODE_MAP[code];
     if (mapped) return mapped;
@@ -288,7 +287,7 @@ function extractItems(
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    const isActiveCode = line.match(/ISACTIVE\d+/i)?.[0]?.toUpperCase() ?? null;
+    const isActiveCode = line.match(/ISACTIVE\d/i)?.[0]?.toUpperCase() ?? null;
     const isDescriptionOnly = !isActiveCode && /IS\s*ACTIVATION/i.test(line);
     const hasActivation = Boolean(isActiveCode) || isDescriptionOnly;
 
@@ -304,9 +303,9 @@ function extractItems(
 
       // Look at this line + next few lines for price, but strip ISACTIVE codes so
       // the trailing digit (e.g. the "5" in ISACTIVE5) isn't picked up as a price.
-      const contextLines = [line.replace(/ISACTIVE\d+/gi, "")];
+      const contextLines = [line.replace(/ISACTIVE\d/gi, "")];
       for (let j = i + 1; j < Math.min(lines.length, i + 6); j++) {
-        if (/IS\s*ACTIVATION/i.test(lines[j]) || /ISACTIVE\d+/i.test(lines[j])) break;
+        if (/IS\s*ACTIVATION/i.test(lines[j]) || /ISACTIVE\d/i.test(lines[j])) break;
         if (/^comment/i.test(lines[j]) || /merchant|card\s*no|auth\.\s*no/i.test(lines[j])) break;
         contextLines.push(lines[j]);
       }
