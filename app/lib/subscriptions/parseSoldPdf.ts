@@ -310,6 +310,7 @@ function extractItems(
         contextLines.push(lines[j]);
       }
       const linePrice = findBestAmount(contextLines);
+      console.log("[parseSoldPdf] activation line:", JSON.stringify(line), "contextLines:", JSON.stringify(contextLines), "→ price:", linePrice);
       const quantity = parseQuantity(line);
       const descriptionMatch = line.match(/IS\s*ACTIVATION\s*[^\d]*\d*/i)?.[0]?.trim();
       const lineSerial = extractSerial(line);
