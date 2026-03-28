@@ -307,10 +307,10 @@ function extractItems(
       const contextLines = [line.replace(/ISACTIVE\d+/gi, "")];
       for (let j = i + 1; j < Math.min(lines.length, i + 6); j++) {
         if (/IS\s*ACTIVATION/i.test(lines[j]) || /ISACTIVE\d+/i.test(lines[j])) break;
+        if (/^comment/i.test(lines[j]) || /merchant|card\s*no|auth\.\s*no/i.test(lines[j])) break;
         contextLines.push(lines[j]);
       }
       const linePrice = findBestAmount(contextLines);
-      console.log("[parseSoldPdf] activation line:", JSON.stringify(line), "contextLines:", JSON.stringify(contextLines), "→ price:", linePrice);
       const quantity = parseQuantity(line);
       const descriptionMatch = line.match(/IS\s*ACTIVATION\s*[^\d]*\d*/i)?.[0]?.trim();
       const lineSerial = extractSerial(line);
