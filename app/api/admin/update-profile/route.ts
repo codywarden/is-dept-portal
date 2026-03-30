@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     location?: string;
     locations?: string[];
     page_permissions?: Record<string, boolean>;
+    cell_phone?: string;
   };
 
   if (!userId || !patch || typeof patch !== "object") {
@@ -54,6 +55,7 @@ export async function POST(req: Request) {
   }
   if ("location" in patch) updatePayload.location = patch.location ?? null;
   if ("page_permissions" in patch) updatePayload.page_permissions = patch.page_permissions ?? null;
+  if ("cell_phone" in patch) updatePayload.cell_phone = patch.cell_phone ?? null;
 
   const { error } = await supabaseAdmin
     .from("profiles")

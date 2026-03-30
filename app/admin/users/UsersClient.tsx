@@ -15,6 +15,7 @@ type AdminRow = {
   page_permissions: Record<string, boolean> | null;
   last_login: string | null;
   created_at?: string | null;
+  cell_phone?: string | null;
 };
 
 const LOCATIONS_DEFAULT = [
@@ -70,6 +71,13 @@ const PAGE_GROUPS: {
   },
 ];
 
+function fmtPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 10);
+  if (digits.length < 4) return digits;
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
 function fmtDate(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -89,6 +97,7 @@ export default function UsersClient({ initialUsers, canAddUser, canDeleteUser, c
     lastName: "",
     locations: [] as string[],
     role: "viewer" as Role,
+    cell_phone: "",
   });
   const [loading, setLoading] = useState(false);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
@@ -172,6 +181,7 @@ export default function UsersClient({ initialUsers, canAddUser, canDeleteUser, c
         locations: locs,
         location: locs[0] ?? null,
         role: formData.role,
+        cell_phone: formData.cell_phone.trim() || null,
       }),
     });
 
@@ -196,7 +206,7 @@ export default function UsersClient({ initialUsers, canAddUser, canDeleteUser, c
     setUsers((prev) => [newUser, ...prev]);
     setMsg("User added successfully ✅");
     setShowAddForm(false);
-    setFormData({ email: "", password: "", firstName: "", lastName: "", locations: [], role: "viewer" });
+    setFormData({ email: "", password: "", firstName: "", lastName: "", locations: [], role: "viewer", cell_phone: "" });
     setAttemptedSubmit(false);
   }
 
@@ -354,6 +364,20 @@ export default function UsersClient({ initialUsers, canAddUser, canDeleteUser, c
                   fontWeight: 500,
                 }}
               />
+              <input
+                type="tel"
+                placeholder="Cell phone (optional)"
+                value={formData.cell_phone}
+                onChange={(e) => setFormData({ ...formData, cell_phone: fmtPhone(e.target.value) })}
+                style={{
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid rgba(0,0,0,0.15)",
+                  background: "white",
+                  color: "#111827",
+                  fontWeight: 500,
+                }}
+              />
               <select
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
@@ -454,6 +478,7 @@ function UserRow({
   const [first, setFirst] = useState(user.first_name ?? "");
   const [last, setLast] = useState(user.last_name ?? "");
   const [displayEmail, setDisplayEmail] = useState(user.email ?? "");
+  const [displayPhone, setDisplayPhone] = useState(user.cell_phone ?? "");
   const [locs, setLocs] = useState<string[]>(
     user.locations ?? (user.location ? [user.location] : [])
   );
@@ -468,6 +493,7 @@ function UserRow({
   const [editFirst, setEditFirst] = useState("");
   const [editLast, setEditLast] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [editSaveStatus, setEditSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
@@ -516,6 +542,7 @@ function UserRow({
             first_name: editFirst.trim(),
             last_name: editLast.trim(),
             email: editEmail.trim() !== displayEmail ? editEmail.trim() : undefined,
+            cell_phone: editPhone.trim() !== displayPhone ? (editPhone.trim() || null) : undefined,
           },
         }),
       });
@@ -528,16 +555,18 @@ function UserRow({
       setFirst(editFirst.trim());
       setLast(editLast.trim());
       if (editEmail.trim() !== displayEmail) setDisplayEmail(editEmail.trim());
+      if (editPhone.trim() !== displayPhone) setDisplayPhone(editPhone.trim());
       setEditSaveStatus("saved");
       setTimeout(() => setEditSaveStatus("idle"), 2000);
     }, 1200);
-  }, [editFirst, editLast, editEmail]);
+  }, [editFirst, editLast, editEmail, editPhone]);
 
   function openEdit() {
     isEditFirstChange.current = true;
     setEditFirst(first);
     setEditLast(last);
     setEditEmail(displayEmail);
+    setEditPhone(displayPhone);
     setEditError(null);
     setEditSaveStatus("idle");
     setShowEdit(true);
@@ -591,7 +620,9 @@ function UserRow({
           <div style={{ fontWeight: first || last ? 500 : 900, color: "#111827", marginTop: first || last ? 2 : 0 }}>
             {displayEmail || "(no email)"}
           </div>
-          <div style={{ marginTop: 4, fontSize: 12, opacity: 0.75, color: "#111827" }}>{user.id}</div>
+          {displayPhone && (
+            <div style={{ marginTop: 2, fontSize: 13, color: "#374151" }}>{displayPhone}</div>
+          )}
           <div style={{ marginTop: 6, fontSize: 13, color: "#111827" }}>
             <b>Last login:</b> {fmtDate(user.last_login)}
           </div>
@@ -652,7 +683,7 @@ function UserRow({
       {/* Edit name/email panel */}
       {showEdit && (
         <div style={{ borderTop: "1px solid rgba(0,0,0,0.1)", padding: "14px 16px", background: "#f3f4f6" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, maxWidth: 600 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, maxWidth: 800 }}>
             <input
               value={editFirst}
               onChange={(e) => setEditFirst(e.target.value)}
@@ -670,6 +701,13 @@ function UserRow({
               onChange={(e) => setEditEmail(e.target.value)}
               placeholder="Email"
               type="email"
+              style={{ padding: 10, color: "#111827", borderRadius: 10, border: "1px solid rgba(0,0,0,0.15)", background: "white" }}
+            />
+            <input
+              value={editPhone}
+              onChange={(e) => setEditPhone(fmtPhone(e.target.value))}
+              placeholder="Cell phone (optional)"
+              type="tel"
               style={{ padding: 10, color: "#111827", borderRadius: 10, border: "1px solid rgba(0,0,0,0.15)", background: "white" }}
             />
           </div>

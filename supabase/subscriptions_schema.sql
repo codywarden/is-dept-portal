@@ -383,6 +383,18 @@ alter table if exists sa_subscription_cost_items
 alter table if exists sa_subscription_sold_items
   add column if not exists auto_reconclied boolean not null default false;
 
+-- Cell phone number on profiles (for future SMS MFA / Expert Connect notifications)
+-- Stored as formatted US number: (XXX) XXX-XXXX
+alter table if exists profiles
+  add column if not exists cell_phone text;
+
+alter table profiles
+  drop constraint if exists profiles_cell_phone_format;
+
+alter table profiles
+  add constraint profiles_cell_phone_format
+    check (cell_phone is null or cell_phone ~ '^\(\d{3}\) \d{3}-\d{4}$');
+
 -- XID to IS Consultant name mappings
 create table if not exists sa_xid_consultants (
   id uuid primary key default gen_random_uuid(),

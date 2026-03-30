@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
     if (profile?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const { email, password, firstName, lastName, location, locations, role } =
+    const { email, password, firstName, lastName, location, locations, role, cell_phone } =
       await req.json();
 
     // Validate required fields
@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
           location: location || (Array.isArray(locations) ? locations[0] : null) || null,
           locations: Array.isArray(locations) ? locations : (location ? [location] : []),
           role: role || "viewer",
+          cell_phone: cell_phone || null,
         },
         { onConflict: "id" }
       );

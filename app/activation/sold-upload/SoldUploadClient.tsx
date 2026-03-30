@@ -587,7 +587,7 @@ export default function SoldUploadClient({ role, userLocation }: { role: Role; u
                   </div>
                 </div>
                 <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "right" }}>
-                  <div style={{ fontWeight: 800, fontSize: 15 }}>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: "#111827" }}>
                     {editingId === it.id ? (
                       <input
                         value={editValues.retail_price ?? ""}

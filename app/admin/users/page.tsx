@@ -18,6 +18,7 @@ type AdminRow = {
   page_permissions: Record<string, boolean> | null;
   last_login: string | null;
   created_at?: string | null;
+  cell_phone?: string | null;
 };
 
 type ProfileRow = Omit<AdminRow, "last_login">;
@@ -43,7 +44,7 @@ export default async function UsersPage() {
 
   const { data: profiles, error: profilesErr } = await supabaseAdmin
     .from("profiles")
-    .select("id,email,role,first_name,last_name,location,locations,page_permissions,created_at")
+    .select("id,email,role,first_name,last_name,location,locations,page_permissions,created_at,cell_phone")
     .order("created_at", { ascending: false });
 
   if (profilesErr) {
