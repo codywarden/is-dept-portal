@@ -43,8 +43,8 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
   const [lastCommand, setLastCommand] = useState<string>("");
   const [esp32Status, setEsp32Status] = useState<ESP32Status | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
-  const [smallMovePixels, setSmallMovePixels] = useState(5);
-  const [largeMovePixels, setLargeMovePixels] = useState(25);
+  const [smallMovePixels, setSmallMovePixels] = useState(200);
+  const [largeMovePixels, setLargeMovePixels] = useState(500);
 
   // Firmware state
   const [firmwareReleases, setFirmwareReleases] = useState<FirmwareRelease[]>([]);
@@ -334,7 +334,7 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
                     min="1"
                     max="20"
                     value={smallMovePixels}
-                    onChange={(e) => setSmallMovePixels(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                    onChange={(e) => setSmallMovePixels(Math.max(1, Math.min(1000, parseInt(e.target.value) || 1)))}
                     className="w-12 px-2 py-1 border border-green-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
                     disabled={!canControl}
                   />
@@ -408,7 +408,7 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
                     min="10"
                     max="50"
                     value={largeMovePixels}
-                    onChange={(e) => setLargeMovePixels(Math.max(10, Math.min(50, parseInt(e.target.value) || 10)))}
+                    onChange={(e) => setLargeMovePixels(Math.max(1, Math.min(1000, parseInt(e.target.value) || 1)))}
                     className="w-12 px-2 py-1 border border-green-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
                     disabled={!canControl}
                   />

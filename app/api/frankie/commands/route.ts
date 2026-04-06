@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { command, mouse_x, mouse_y, mouse_relative } = body;
 
-    if (!command || !["enter", "mouse_click", "mouse_move"].includes(command)) {
+    if (!command || !["enter", "mouse_click", "mouse_move", "ota_update"].includes(command)) {
       return NextResponse.json({ error: "Invalid command" }, { status: 400 });
     }
 
