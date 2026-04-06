@@ -29,6 +29,7 @@ export async function proxy(req: NextRequest) {
     path === "/login" ||
     path.startsWith("/auth") ||
     path.startsWith("/api/activation/subscriptions/email-upload") ||
+    path.startsWith("/api/frankie/") ||
     path.startsWith("/_next") ||
     path === "/favicon.ico";
 
