@@ -52,6 +52,7 @@ export default function DashboardClient({
     { title: "Sprayers", href: "/sprayers", permKey: "sprayers", roles: ["admin", "verifier"] as Role[] },
     { title: "Activation", href: "/activation", permKey: "activation", roles: ["admin", "verifier", "viewer"] as Role[] },
     { title: "Service Agreements", href: "/service-agreements", permKey: "service-agreements", roles: ["admin", "verifier", "viewer"] as Role[] },
+    { title: "🚜 Frankie the Autonomous Tractor", href: "/dashboard/frankie", permKey: "frankie", roles: ["admin", "verifier"] as Role[] },
     { title: "Protected", href: "/protected", permKey: null, roles: ["admin"] as Role[] },
     { title: "System Test", href: "/test", permKey: null, roles: ["admin"] as Role[] },
   ];
