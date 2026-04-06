@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+import { redirect } from "next/navigation";
 import FrankieClient from "./FrankieClient";
 import { requireUser } from "../../lib/auth/requireRole";
 
@@ -16,6 +17,12 @@ export default async function FrankiePage() {
     .single();
 
   const role = ((profile?.role ?? "viewer") as Role);
+  const pagePermissions = (profile?.page_permissions as Record<string, boolean> | null) ?? {};
+
+  // Admins always have access; others need the frankie permission
+  if (role !== "admin" && !pagePermissions["frankie"]) {
+    redirect("/dashboard");
+  }
 
   return (
     <FrankieClient
@@ -25,7 +32,7 @@ export default async function FrankiePage() {
         firstName: profile?.first_name ?? "",
         lastName: profile?.last_name ?? "",
         locations: (profile?.locations as string[] | null) ?? (profile?.location ? [profile.location] : []),
-        pagePermissions: (profile?.page_permissions as Record<string, boolean> | null) ?? null,
+        pagePermissions: pagePermissions,
       }}
     />
   );

@@ -45,6 +45,7 @@ const PAGE_GROUPS: {
   },
   { key: "see-spray", label: "See & Spray", subpages: [] },
   { key: "sprayers", label: "Sprayers", subpages: [] },
+  { key: "frankie", label: "Frankie (Tractor Control)", subpages: [] },
   {
     key: "activation",
     label: "Activation",
