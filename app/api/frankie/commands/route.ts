@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { createSupabaseAdmin } from "@/app/lib/supabase/admin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -92,23 +93,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET endpoint for ESP32 to fetch pending commands
+// GET endpoint for ESP32 to fetch pending commands (unauthenticated, uses service role)
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return (async () => (await cookies()).getAll())();
-          },
-          setAll(cookiesToSet) {
-            // No-op for GET
-          },
-        },
-      }
-    );
+    const supabase = createSupabaseAdmin();
 
     // Get the next pending command
     const { data: command, error } = await supabase
@@ -136,23 +124,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH endpoint for ESP32 to mark commands as processed
+// PATCH endpoint for ESP32 to mark commands as processed (unauthenticated, uses service role)
 export async function PATCH(req: NextRequest) {
   try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return (async () => (await cookies()).getAll())();
-          },
-          setAll(cookiesToSet) {
-            // No-op for PATCH
-          },
-        },
-      }
-    );
+    const supabase = createSupabaseAdmin();
 
     const body = await req.json();
     const { id, status } = body;

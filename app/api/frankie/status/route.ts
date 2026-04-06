@@ -1,24 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createSupabaseAdmin } from "@/app/lib/supabase/admin";
 
 // GET endpoint for dashboard to fetch ESP32 status
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return (async () => (await cookies()).getAll())();
-          },
-          setAll(cookiesToSet) {
-            // No-op for GET
-          },
-        },
-      }
-    );
+    const supabase = createSupabaseAdmin();
 
     // Get ESP32 status
     const { data: status, error } = await supabase
@@ -61,23 +47,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST endpoint for ESP32 heartbeat
+// POST endpoint for ESP32 heartbeat (unauthenticated, uses service role)
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return (async () => (await cookies()).getAll())();
-          },
-          setAll(cookiesToSet) {
-            // No-op for POST
-          },
-        },
-      }
-    );
+    const supabase = createSupabaseAdmin();
 
     const body = await req.json();
     const { ip_address, wifi_ssid, firmware_version } = body;
