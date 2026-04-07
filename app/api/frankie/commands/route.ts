@@ -86,6 +86,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to save command" }, { status: 500 });
     }
 
+    // Broadcast immediately via Supabase Realtime so ESP32 receives it in ~50ms
+    // instead of waiting up to 10s for the polling fallback.
+    // mouse_move is intentionally excluded here — high-frequency moves go direct
+    // from the client via the Supabase channel (see FrankieClient.tsx).
+    try {
+      const adminSupabase = createSupabaseAdmin();
+      const broadcastPayload: Record<string, unknown> = { command };
+      if (command === "mouse_move") {
+        broadcastPayload.x        = mouse_x;
+        broadcastPayload.y        = mouse_y;
+        broadcastPayload.relative = mouse_relative !== false;
+      }
+      // Calling send() before subscribe() uses the Supabase REST broadcast endpoint
+      // which is fire-and-forget and safe in a serverless context.
+      const ch = adminSupabase.channel("frankie");
+      await ch.send({ type: "broadcast", event: "command", payload: broadcastPayload });
+      await adminSupabase.removeChannel(ch);
+    } catch (broadcastErr) {
+      // Non-fatal — ESP32 will still pick it up via the polling fallback
+      console.warn("Realtime broadcast failed (non-fatal):", broadcastErr);
+    }
+
     return NextResponse.json({ success: true, command: data });
   } catch (error) {
     console.error("API error:", error);

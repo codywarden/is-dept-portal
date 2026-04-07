@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createBrowserClient } from "@supabase/ssr";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface FrankieClientProps {
   role: "admin" | "verifier" | "viewer";
@@ -45,6 +46,19 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
   const [statusLoading, setStatusLoading] = useState(true);
   const [smallMovePixels, setSmallMovePixels] = useState(200);
   const [largeMovePixels, setLargeMovePixels] = useState(500);
+  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
+  const [trackpadSensitivity, setTrackpadSensitivity] = useState(2);
+
+  // Only admin and verifier can control Frankie (defined early — used in hooks below)
+  const canControl = role === "admin" || role === "verifier";
+
+  // Realtime channel ref (stable across renders)
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  // Trackpad state (refs to avoid stale closures in pointer handlers)
+  const isDragging = useRef(false);
+  const lastPointerPos = useRef({ x: 0, y: 0 });
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const lastSendTime = useRef(0);
 
   // Firmware state
   const [firmwareReleases, setFirmwareReleases] = useState<FirmwareRelease[]>([]);
@@ -60,6 +74,65 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // ── Supabase Realtime channel ─────────────────────────────────────────────
+  useEffect(() => {
+    const ch = supabase.channel("frankie");
+    channelRef.current = ch;
+
+    ch.subscribe((status) => {
+      if (status === "SUBSCRIBED") setRealtimeStatus("connected");
+      else if (status === "CLOSED" || status === "CHANNEL_ERROR") setRealtimeStatus("disconnected");
+    });
+
+    return () => {
+      supabase.removeChannel(ch);
+      channelRef.current = null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Broadcast a command directly via Realtime (no DB write — for high-freq mouse moves)
+  const broadcastCommand = useCallback((payload: Record<string, unknown>) => {
+    const ch = channelRef.current;
+    if (!ch) return;
+    ch.send({ type: "broadcast", event: "command", payload });
+  }, []);
+
+  // ── Trackpad pointer handlers ─────────────────────────────────────────────
+  const onTrackpadPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!canControl) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    isDragging.current = true;
+    lastPointerPos.current = { x: e.clientX, y: e.clientY };
+    dragStartPos.current   = { x: e.clientX, y: e.clientY };
+    lastSendTime.current   = 0;
+  }, [canControl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onTrackpadPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging.current || !canControl) return;
+    const now = Date.now();
+    if (now - lastSendTime.current < 16) return; // cap at ~60fps
+    const dx = Math.round((e.clientX - lastPointerPos.current.x) * trackpadSensitivity);
+    const dy = Math.round((e.clientY - lastPointerPos.current.y) * trackpadSensitivity);
+    if (dx !== 0 || dy !== 0) {
+      broadcastCommand({ command: "mouse_move", x: dx, y: dy });
+      setLastCommand(`mouse_move (${dx > 0 ? "+" : ""}${dx}, ${dy > 0 ? "+" : ""}${dy}) - ${new Date().toLocaleTimeString()}`);
+      lastPointerPos.current = { x: e.clientX, y: e.clientY };
+      lastSendTime.current = now;
+    }
+  }, [canControl, trackpadSensitivity, broadcastCommand]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onTrackpadPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    // If barely moved, treat as a click
+    const totalDx = Math.abs(e.clientX - dragStartPos.current.x);
+    const totalDy = Math.abs(e.clientY - dragStartPos.current.y);
+    if (totalDx < 5 && totalDy < 5 && canControl) {
+      broadcastCommand({ command: "mouse_click" });
+      setLastCommand(`mouse_click (tap) - ${new Date().toLocaleTimeString()}`);
+    }
+  }, [canControl, broadcastCommand]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll ESP32 status every 10 seconds
   useEffect(() => {
@@ -146,53 +219,28 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
     }
   };
 
-  const pushOTAUpdate = async () => {
-    setLoading(true);
-    setStatus("Sending OTA update command...");
-    try {
-      const res = await fetch("/api/frankie/commands", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: "ota_update" }),
-      });
-      if (!res.ok) throw new Error("Failed to send OTA command");
-      setLastCommand(`ota_update - ${new Date().toLocaleTimeString()}`);
-      setStatus("OTA update command sent — device will flash and reboot");
-      setTimeout(() => setStatus(""), 5000);
-    } catch (e) {
-      setStatus("Error sending OTA command");
-      setTimeout(() => setStatus(""), 3000);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const pushOTAUpdate = () => sendCommand("ota_update");
 
-  const sendCommand = async (command: "enter" | "mouse_click" | "mouse_move", mouseX?: number, mouseY?: number) => {
+  // mouse_move goes direct via Realtime (no DB write — can be high-frequency)
+  // enter / mouse_click / ota_update go through the API route (saved to DB + broadcast)
+  const sendMouseMove = useCallback((x: number, y: number) => {
+    if (!canControl) return;
+    broadcastCommand({ command: "mouse_move", x, y, relative: true });
+    setLastCommand(`mouse_move (${x > 0 ? "+" : ""}${x}, ${y > 0 ? "+" : ""}${y}) - ${new Date().toLocaleTimeString()}`);
+  }, [canControl, broadcastCommand]);
+
+  const sendCommand = async (command: "enter" | "mouse_click" | "ota_update") => {
     setLoading(true);
     setStatus("Sending command...");
-
     try {
-      const payload: any = { command };
-      if (command === "mouse_move") {
-        payload.mouse_x = mouseX || 0;
-        payload.mouse_y = mouseY || 0;
-        payload.mouse_relative = true; // relative movement
-      }
-
       const response = await fetch("/api/frankie/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ command }),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to send command");
-      }
-
-      const data = await response.json();
-      setLastCommand(`${command}${mouseX !== undefined ? ` (${mouseX},${mouseY})` : ""} - ${new Date().toLocaleTimeString()}`);
-      setStatus(`✅ ${command.replace("_", " ").toUpperCase()} sent!`);
-
+      if (!response.ok) throw new Error("Failed to send command");
+      setLastCommand(`${command} - ${new Date().toLocaleTimeString()}`);
+      setStatus(`✅ ${command.replace(/_/g, " ").toUpperCase()} sent!`);
       setTimeout(() => setStatus(""), 2000);
     } catch (error) {
       setStatus("❌ Error sending command");
@@ -202,9 +250,6 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
       setLoading(false);
     }
   };
-
-  // Only admin and verifier can control Frankie
-  const canControl = role === "admin" || role === "verifier";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 p-8">
@@ -249,212 +294,96 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
 
             {/* Mouse Click */}
             <button
-              onClick={() => sendCommand("mouse_click")}
-              disabled={loading || !canControl}
+              onClick={() => {
+                broadcastCommand({ command: "mouse_click" });
+                setLastCommand(`mouse_click - ${new Date().toLocaleTimeString()}`);
+              }}
+              disabled={!canControl}
               className={`py-6 px-8 rounded-lg font-semibold text-lg transition-all transform hover:scale-105 active:scale-95 ${
                 canControl
                   ? "bg-green-600 hover:bg-green-700 text-white shadow-lg"
                   : "bg-gray-300 text-gray-500 cursor-not-allowed"
-              } ${loading ? "opacity-75" : ""}`}
+              }`}
             >
               🖱️ Mouse Click
             </button>
           </div>
 
-          {/* Mouse Movement Controls */}
+          {/* Live Trackpad */}
           <div className="mb-8">
-            <h3 className="text-lg font-semibold text-green-800 mb-6">Mouse Movement</h3>
-            
-            {/* Two Column Layout */}
-            <div className="flex justify-center gap-20 mb-8">
-              {/* Small Moves Column */}
-              <div className="flex flex-col items-center">
-                <h4 className="font-semibold text-green-700 mb-3">Small Moves</h4>
-
-                {/* Directional Buttons */}
-                <div className="flex flex-col items-center justify-center gap-3 mb-4">
-                  {/* Up */}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-green-800">Live Trackpad</h3>
+              <div className="flex items-center gap-2 text-sm text-green-700">
+                <span>Sensitivity:</span>
+                {[1, 2, 3, 5].map((s) => (
                   <button
-                    onClick={() => sendCommand("mouse_move", 0, -smallMovePixels)}
-                    disabled={loading || !canControl}
-                    className={`py-1 px-2 rounded font-semibold text-xs transition-all ${
-                      canControl
-                        ? "bg-blue-500 hover:bg-blue-600 text-white"
-                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    } ${loading ? "opacity-75" : ""}`}
+                    key={s}
+                    onClick={() => setTrackpadSensitivity(s)}
+                    className={`px-2 py-0.5 rounded text-xs font-semibold border transition-all ${
+                      trackpadSensitivity === s
+                        ? "bg-green-600 text-white border-green-600"
+                        : "bg-white text-green-700 border-green-300 hover:bg-green-50"
+                    }`}
                   >
-                    ↑
+                    {s}×
                   </button>
-
-                  {/* Left and Right */}
-                  <div className="flex gap-3 items-center">
-                    <button
-                      onClick={() => sendCommand("mouse_move", -smallMovePixels, 0)}
-                      disabled={loading || !canControl}
-                      className={`py-1 px-2 rounded font-semibold text-xs transition-all ${
-                        canControl
-                          ? "bg-blue-500 hover:bg-blue-600 text-white"
-                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      } ${loading ? "opacity-75" : ""}`}
-                    >
-                      ←
-                    </button>
-                    <button
-                      onClick={() => sendCommand("mouse_move", smallMovePixels, 0)}
-                      disabled={loading || !canControl}
-                      className={`py-1 px-2 rounded font-semibold text-xs transition-all ${
-                        canControl
-                          ? "bg-blue-500 hover:bg-blue-600 text-white"
-                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      } ${loading ? "opacity-75" : ""}`}
-                    >
-                      →
-                    </button>
-                  </div>
-
-                  {/* Down */}
-                  <button
-                    onClick={() => sendCommand("mouse_move", 0, smallMovePixels)}
-                    disabled={loading || !canControl}
-                    className={`py-1 px-2 rounded font-semibold text-xs transition-all ${
-                      canControl
-                        ? "bg-blue-500 hover:bg-blue-600 text-white"
-                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    } ${loading ? "opacity-75" : ""}`}
-                  >
-                    ↓
-                  </button>
-                </div>
-
-                {/* Pixel Adjustment */}
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-medium text-green-700">Pixels:</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={smallMovePixels}
-                    onChange={(e) => setSmallMovePixels(Math.max(1, Math.min(1000, parseInt(e.target.value) || 1)))}
-                    className="w-12 px-2 py-1 border border-green-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
-                    disabled={!canControl}
-                  />
-                </div>
-              </div>
-
-              {/* Large Moves Column */}
-              <div className="flex flex-col items-center">
-                <h4 className="font-semibold text-green-700 mb-3">Large Moves</h4>
-
-                {/* Directional Buttons */}
-                <div className="flex flex-col items-center justify-center gap-3 mb-4">
-                  {/* Up */}
-                  <button
-                    onClick={() => sendCommand("mouse_move", 0, -largeMovePixels)}
-                    disabled={loading || !canControl}
-                    className={`py-1 px-2 rounded font-semibold text-xs transition-all ${
-                      canControl
-                        ? "bg-purple-500 hover:bg-purple-600 text-white"
-                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    } ${loading ? "opacity-75" : ""}`}
-                  >
-                    ↑
-                  </button>
-
-                  {/* Left and Right */}
-                  <div className="flex gap-3 items-center">
-                    <button
-                      onClick={() => sendCommand("mouse_move", -largeMovePixels, 0)}
-                      disabled={loading || !canControl}
-                      className={`py-1 px-2 rounded font-semibold text-xs transition-all ${
-                        canControl
-                          ? "bg-purple-500 hover:bg-purple-600 text-white"
-                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      } ${loading ? "opacity-75" : ""}`}
-                    >
-                      ←
-                    </button>
-                    <button
-                      onClick={() => sendCommand("mouse_move", largeMovePixels, 0)}
-                      disabled={loading || !canControl}
-                      className={`py-1 px-2 rounded font-semibold text-xs transition-all ${
-                        canControl
-                          ? "bg-purple-500 hover:bg-purple-600 text-white"
-                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      } ${loading ? "opacity-75" : ""}`}
-                    >
-                      →
-                    </button>
-                  </div>
-
-                  {/* Down */}
-                  <button
-                    onClick={() => sendCommand("mouse_move", 0, largeMovePixels)}
-                    disabled={loading || !canControl}
-                    className={`py-1 px-2 rounded font-semibold text-xs transition-all ${
-                      canControl
-                        ? "bg-purple-500 hover:bg-purple-600 text-white"
-                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    } ${loading ? "opacity-75" : ""}`}
-                  >
-                    ↓
-                  </button>
-                </div>
-
-                {/* Pixel Adjustment */}
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-medium text-green-700">Pixels:</label>
-                  <input
-                    type="number"
-                    min="10"
-                    max="50"
-                    value={largeMovePixels}
-                    onChange={(e) => setLargeMovePixels(Math.max(1, Math.min(1000, parseInt(e.target.value) || 1)))}
-                    className="w-12 px-2 py-1 border border-green-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-green-500"
-                    disabled={!canControl}
-                  />
-                </div>
+                ))}
               </div>
             </div>
+            <div
+              onPointerDown={onTrackpadPointerDown}
+              onPointerMove={onTrackpadPointerMove}
+              onPointerUp={onTrackpadPointerUp}
+              onPointerCancel={onTrackpadPointerUp}
+              className={`w-full h-48 rounded-xl border-2 flex items-center justify-center select-none transition-colors ${
+                canControl
+                  ? "border-green-400 bg-green-50 cursor-crosshair hover:bg-green-100 active:bg-green-200"
+                  : "border-gray-200 bg-gray-50 cursor-not-allowed"
+              }`}
+              style={{ touchAction: "none" }}
+            >
+              <p className={`text-sm pointer-events-none ${canControl ? "text-green-500" : "text-gray-400"}`}>
+                {canControl ? "drag to move mouse · tap to click" : "no permission"}
+              </p>
+            </div>
+          </div>
 
-            {/* Coordinate Input */}
-            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-green-700">X:</label>
-                <input
-                  type="number"
-                  id="mouseX"
-                  defaultValue="0"
-                  className="w-20 px-3 py-2 border border-green-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                  disabled={!canControl}
-                />
+          {/* Directional Nudge Buttons */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-green-800 mb-4">Nudge</h3>
+            <div className="flex justify-center gap-20">
+              {/* Small */}
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-xs font-semibold text-blue-600">Small</span>
+                <div className="flex flex-col items-center gap-1">
+                  <button onClick={() => sendMouseMove(0, -smallMovePixels)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>↑</button>
+                  <div className="flex gap-1">
+                    <button onClick={() => sendMouseMove(-smallMovePixels, 0)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>←</button>
+                    <button onClick={() => sendMouseMove(smallMovePixels, 0)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>→</button>
+                  </div>
+                  <button onClick={() => sendMouseMove(0, smallMovePixels)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>↓</button>
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <label className="text-xs text-green-700">px:</label>
+                  <input type="number" min="1" max="1000" value={smallMovePixels} onChange={(e) => setSmallMovePixels(Math.max(1, Math.min(1000, parseInt(e.target.value) || 1)))} className="w-14 px-1 py-0.5 border border-green-300 rounded text-xs" disabled={!canControl} />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-green-700">Y:</label>
-                <input
-                  type="number"
-                  id="mouseY"
-                  defaultValue="0"
-                  className="w-20 px-3 py-2 border border-green-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                  disabled={!canControl}
-                />
+              {/* Large */}
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-xs font-semibold text-purple-600">Large</span>
+                <div className="flex flex-col items-center gap-1">
+                  <button onClick={() => sendMouseMove(0, -largeMovePixels)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? "bg-purple-500 hover:bg-purple-600 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>↑</button>
+                  <div className="flex gap-1">
+                    <button onClick={() => sendMouseMove(-largeMovePixels, 0)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? "bg-purple-500 hover:bg-purple-600 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>←</button>
+                    <button onClick={() => sendMouseMove(largeMovePixels, 0)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? "bg-purple-500 hover:bg-purple-600 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>→</button>
+                  </div>
+                  <button onClick={() => sendMouseMove(0, largeMovePixels)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? "bg-purple-500 hover:bg-purple-600 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>↓</button>
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <label className="text-xs text-green-700">px:</label>
+                  <input type="number" min="1" max="1000" value={largeMovePixels} onChange={(e) => setLargeMovePixels(Math.max(1, Math.min(1000, parseInt(e.target.value) || 1)))} className="w-14 px-1 py-0.5 border border-green-300 rounded text-xs" disabled={!canControl} />
+                </div>
               </div>
-              <button
-                onClick={() => {
-                  const xInput = document.getElementById('mouseX') as HTMLInputElement;
-                  const yInput = document.getElementById('mouseY') as HTMLInputElement;
-                  const x = parseInt(xInput.value) || 0;
-                  const y = parseInt(yInput.value) || 0;
-                  sendCommand("mouse_move", x, y);
-                }}
-                disabled={loading || !canControl}
-                className={`py-2 px-4 rounded font-semibold transition-all ${
-                  canControl
-                    ? "bg-blue-500 hover:bg-blue-600 text-white shadow"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                } ${loading ? "opacity-75" : ""}`}
-              >
-                Move Mouse
-              </button>
             </div>
           </div>
 
@@ -641,9 +570,17 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
               </div>
             )}
 
-            <p>✅ Connected to Frankie control system</p>
-            <p>🌐 Ready to receive commands</p>
-            <p>⏱️ Commands processed in real-time</p>
+            <div className="flex items-center space-x-2">
+              {realtimeStatus === "connected" ? (
+                <span className="text-green-300">🟢 Realtime: live (~50ms)</span>
+              ) : realtimeStatus === "connecting" ? (
+                <span className="text-yellow-300">⏳ Realtime: connecting...</span>
+              ) : (
+                <span className="text-red-300">🔴 Realtime: disconnected</span>
+              )}
+            </div>
+            <p>🖱️ Trackpad streams mouse movement directly</p>
+            <p>⌨️ Enter &amp; OTA saved to database + broadcast</p>
           </div>
         </div>
       </div>
