@@ -63,6 +63,7 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [trackpadSensitivity, setTrackpadSensitivity] = useState(2);
   const [shiftActive, setShiftActive] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [firmwareOpen, setFirmwareOpen] = useState(false);
 
   // Only admin and verifier can control Frankie
@@ -323,45 +324,6 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
             </div>
           </div>
 
-          {/* Keyboard */}
-          <div className="mb-6">
-            <h3 className="text-base font-semibold text-green-800 mb-2">
-              Keyboard
-              {shiftActive && <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold">SHIFT</span>}
-            </h3>
-            <div className="space-y-1">
-              {KEYBOARD_ROWS.map((row, ri) => (
-                <div key={ri} className="flex gap-1 justify-center flex-wrap">
-                  {row.map((key) => {
-                    const isShift  = key === "Shift";
-                    const isWide   = key === "Space" || key === "Enter" || key === "Bksp";
-                    const isActive = isShift && shiftActive;
-                    return (
-                      <button
-                        key={key}
-                        onPointerDown={(e) => { e.preventDefault(); pressKey(key); }}
-                        disabled={!canControl}
-                        className={`
-                          ${isWide ? "px-4 min-w-[64px]" : "w-9"} h-9 rounded text-xs font-semibold
-                          transition-all active:scale-95 select-none
-                          ${!canControl ? "bg-gray-100 text-gray-300 cursor-not-allowed" :
-                            isActive ? "bg-blue-500 text-white shadow" :
-                            isShift  ? "bg-gray-200 hover:bg-gray-300 text-gray-700" :
-                            key === "Enter" ? "bg-green-600 hover:bg-green-700 text-white" :
-                            key === "Bksp" || key === "Esc" ? "bg-red-100 hover:bg-red-200 text-red-700" :
-                            "bg-gray-100 hover:bg-gray-200 text-gray-800"
-                          }
-                        `}
-                      >
-                        {key === "Shift" ? "⇧" : key === "Bksp" ? "⌫" : key}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Nudge */}
           <div className="mb-6">
             <h3 className="text-base font-semibold text-green-800 mb-3">Nudge</h3>
@@ -387,6 +349,53 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Keyboard — collapsible */}
+          <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setKeyboardOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+            >
+              <span className="text-base font-semibold text-green-800">
+                ⌨️ Keyboard
+                {shiftActive && <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold">SHIFT</span>}
+              </span>
+              <span className="text-gray-400">{keyboardOpen ? "▲" : "▼"}</span>
+            </button>
+            {keyboardOpen && (
+              <div className="p-3 space-y-1">
+                {KEYBOARD_ROWS.map((row, ri) => (
+                  <div key={ri} className="flex gap-1 justify-center flex-wrap">
+                    {row.map((key) => {
+                      const isShift  = key === "Shift";
+                      const isWide   = key === "Space" || key === "Enter" || key === "Bksp";
+                      const isActive = isShift && shiftActive;
+                      return (
+                        <button
+                          key={key}
+                          onPointerDown={(e) => { e.preventDefault(); pressKey(key); }}
+                          disabled={!canControl}
+                          className={`
+                            ${isWide ? "px-4 min-w-[64px]" : "w-9"} h-9 rounded text-xs font-semibold
+                            transition-all active:scale-95 select-none
+                            ${!canControl ? "bg-gray-100 text-gray-300 cursor-not-allowed" :
+                              isActive ? "bg-blue-500 text-white shadow" :
+                              isShift  ? "bg-gray-200 hover:bg-gray-300 text-gray-700" :
+                              key === "Enter" ? "bg-green-600 hover:bg-green-700 text-white" :
+                              key === "Bksp" || key === "Esc" ? "bg-red-100 hover:bg-red-200 text-red-700" :
+                              "bg-gray-100 hover:bg-gray-200 text-gray-800"
+                            }
+                          `}
+                        >
+                          {key === "Shift" ? "⇧" : key === "Bksp" ? "⌫" : key}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Status */}
