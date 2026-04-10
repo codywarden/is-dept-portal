@@ -101,7 +101,7 @@ export default function EquipmentClient({ role }: { role: Role }) {
         </div>
       )}
 
-      {role !== "viewer" && (
+      {role === "admin" || role === "manager" && (
         <div style={{ marginBottom: 16, background: "#f9fafb", padding: 12, borderRadius: 10 }}>
           <h3 style={{ marginTop: 0, marginBottom: 12, color: "#000" }}>Add Equipment</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8 }}>
@@ -169,7 +169,7 @@ export default function EquipmentClient({ role }: { role: Role }) {
                 </div>
               )}
             </div>
-            {role !== "viewer" && (
+            {role === "admin" || role === "manager" && (
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <input
                   placeholder="Receiver ID"

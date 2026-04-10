@@ -254,7 +254,7 @@ export default function TasksClient({ role }: { role: Role }) {
                 <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Due: {task.due_date}</div>
               )}
             </div>
-            {role !== "viewer" ? (
+            {role === "admin" || role === "manager" ? (
               <select
                 value={task.status}
                 onChange={(e) => updateStatus(task.id, e.target.value as Task["status"])}

@@ -384,7 +384,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (role === "viewer") {
+      if (role === "user" || role === "guest") {
         return NextResponse.json(
           { error: "Insufficient permissions" },
           { status: 403 }

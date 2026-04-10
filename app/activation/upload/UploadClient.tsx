@@ -136,13 +136,13 @@ export default function UploadClient({ role }: { role: Role }) {
         </p>
       </header>
 
-      {role === "viewer" && (
+      {(role === "user" || role === "guest") && (
         <div style={{ padding: "12px 16px", borderRadius: 10, background: "#fef9c3", border: "1px solid #fbbf24", color: "#92400e", fontWeight: 700, marginBottom: 16 }}>
           You have view-only access. Uploads are disabled.
         </div>
       )}
 
-      <section style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", opacity: role === "viewer" ? 0.5 : 1, pointerEvents: role === "viewer" ? "none" : "auto" }}>
+      <section style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", opacity: (role === "user" || role === "guest") ? 0.5 : 1, pointerEvents: (role === "user" || role === "guest") ? "none" : "auto" }}>
         <div style={{ background: "#f9fafb", padding: 16, borderRadius: 10, border: "1px solid rgba(0,0,0,0.12)", color: "#000" }}>
           <div style={{ fontWeight: 800, marginBottom: 6 }}>Cost Upload</div>
           <div style={{ display: "grid", gap: 10 }}>

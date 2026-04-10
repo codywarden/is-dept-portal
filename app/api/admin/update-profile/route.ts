@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     .eq("id", caller.user.id)
     .single();
 
-  const myRole = (myProfile?.role ?? "viewer") as Role;
+  const myRole = (myProfile?.role ?? "user") as Role;
   if (myRole !== "admin" && myRole !== "manager") {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }

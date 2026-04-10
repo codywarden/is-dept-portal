@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    const role = profile?.role ?? "viewer";
+    const role = profile?.role ?? "user";
     const userLocation = profile?.location ?? null;
 
     if (role !== "admin" && !userLocation) {
