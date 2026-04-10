@@ -17,7 +17,7 @@ async function getUserRole() {
   return {
     supabase,
     user: authData.user,
-    role: (profile?.role ?? "viewer") as "admin" | "verifier" | "viewer",
+    role: (profile?.role ?? "user") as "admin" | "manager" | "user" | "guest",
   };
 }
 

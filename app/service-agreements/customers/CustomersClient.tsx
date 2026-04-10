@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 type Customer = {
   id: string;

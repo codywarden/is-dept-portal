@@ -5,7 +5,7 @@ import UsersClient from "./UsersClient";
 import { requireRole } from "../../lib/auth/requireRole";
 import { createClient } from "@supabase/supabase-js";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 type AdminRow = {
   id: string;
@@ -24,7 +24,7 @@ type AdminRow = {
 type ProfileRow = Omit<AdminRow, "last_login">;
 
 export default async function UsersPage() {
-  const { user } = await requireRole(["admin"]);
+  const { user, role: viewerRole } = await requireRole(["admin", "manager"]);
 
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,8 +39,10 @@ export default async function UsersPage() {
 
   const currentPerms = (currentProfile?.page_permissions ?? null) as Record<string, boolean> | null;
   const hasAnyPerm = currentPerms && Object.keys(currentPerms).length > 0;
-  const canAddUser = !hasAnyPerm || currentPerms["admin/users/add"] === true;
-  const canDeleteUser = !hasAnyPerm || currentPerms["admin/users/delete"] === true;
+  const canAddUser = viewerRole === "admin" || !hasAnyPerm || currentPerms?.["admin/users/add"] === true;
+  const canDeleteUser = viewerRole === "admin" || !hasAnyPerm || currentPerms?.["admin/users/delete"] === true;
+  // Only admins can assign admin or manager roles
+  const canAssignElevated = viewerRole === "admin";
 
   const { data: profiles, error: profilesErr } = await supabaseAdmin
     .from("profiles")
@@ -78,5 +80,5 @@ export default async function UsersPage() {
     last_login: lastLoginById.get(p.id) ?? null,
   }));
 
-  return <UsersClient initialUsers={rows} canAddUser={canAddUser} canDeleteUser={canDeleteUser} canAssignAdmin={true} />;
+  return <UsersClient initialUsers={rows} canAddUser={canAddUser} canDeleteUser={canDeleteUser} canAssignAdmin={canAssignElevated} />;
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "../../../lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 export async function POST(req: Request) {
   const supabase = await createSupabaseServer();
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   const userId = body?.userId as string;
   const role = body?.role as Role;
 
-  if (!userId || !["admin", "verifier", "viewer"].includes(role)) {
+  if (!userId || !["admin", "manager", "user", "guest"].includes(role)) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 

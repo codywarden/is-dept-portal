@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../lib/supabase/client";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 type ProfileInfo = {
   email: string;
@@ -46,25 +46,29 @@ export default function DashboardClient({
     };
   }, [router, supabase]);
 
+  // admin: all cards
+  // manager: always Manage Users + Settings; everything else via page permissions
+  // user / guest: page permissions only
   const allCards = [
-    { title: "Admin", href: "/admin", permKey: "admin", roles: ["admin"] as Role[] },
-    { title: "See & Spray", href: "/see-spray", permKey: "see-spray", roles: ["admin", "verifier", "viewer"] as Role[] },
-    { title: "Sprayers", href: "/sprayers", permKey: "sprayers", roles: ["admin", "verifier"] as Role[] },
-    { title: "Activation", href: "/activation", permKey: "activation", roles: ["admin", "verifier", "viewer"] as Role[] },
-    { title: "Service Agreements", href: "/service-agreements", permKey: "service-agreements", roles: ["admin", "verifier", "viewer"] as Role[] },
-    { title: "🚜 Frankie the Autonomous Tractor", href: "/dashboard/frankie", permKey: "frankie", roles: ["admin", "verifier"] as Role[] },
-    { title: "Protected", href: "/protected", permKey: null, roles: ["admin"] as Role[] },
-    { title: "System Test", href: "/test", permKey: null, roles: ["admin"] as Role[] },
+    { title: "Admin", href: "/admin", permKey: "admin", adminOnly: true },
+    { title: "Manage Users", href: "/admin/users", permKey: "admin/users", managerDefault: true },
+    { title: "Settings", href: "/admin/settings", permKey: "admin/settings", managerDefault: true },
+    { title: "See & Spray", href: "/see-spray", permKey: "see-spray", adminOnly: false },
+    { title: "Sprayers", href: "/sprayers", permKey: "sprayers", adminOnly: false },
+    { title: "Activation", href: "/activation", permKey: "activation", adminOnly: false },
+    { title: "Service Agreements", href: "/service-agreements", permKey: "service-agreements", adminOnly: false },
+    { title: "🚜 Frankie the Autonomous Tractor", href: "/dashboard/frankie", permKey: "frankie", adminOnly: false },
+    { title: "Protected", href: "/protected", permKey: null, adminOnly: true },
+    { title: "System Test", href: "/test", permKey: null, adminOnly: true },
   ];
 
-  const perms = profile.pagePermissions;
-  const hasAnyPerm = perms && Object.keys(perms).length > 0;
+  const perms = profile.pagePermissions ?? {};
 
   const cards = allCards.filter((c) => {
-    if (!c.roles.includes(role)) return false;
     if (role === "admin") return true;
-    // if no permissions configured, fall back to role-based defaults
-    if (!hasAnyPerm || c.permKey === null) return true;
+    if (c.adminOnly) return false;
+    if (role === "manager" && c.managerDefault) return true;
+    if (c.permKey === null) return false;
     return perms[c.permKey] === true;
   });
 

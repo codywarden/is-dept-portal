@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "../../../../lib/supabase/server";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 async function getUserRole() {
   const supabase = await createSupabaseServer();
@@ -19,7 +19,7 @@ async function getUserRole() {
   return {
     supabase,
     user: authData.user,
-    role: (profile?.role ?? "viewer") as Role,
+    role: (profile?.role ?? "user") as Role,
   };
 }
 

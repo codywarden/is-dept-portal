@@ -13,7 +13,7 @@ export default async function UploadPage() {
     .eq("id", user.id)
     .single();
 
-  const role = (profile?.role ?? "viewer") as "admin" | "verifier" | "viewer";
+  const role = (profile?.role ?? "user") as "admin" | "manager" | "user" | "guest";
 
   return <UploadClient role={role} />;
 }

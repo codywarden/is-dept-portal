@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function ReconcilePage() {
-  const { supabase, user, role } = await requireRole(["admin", "verifier", "viewer"]);
+  const { supabase, user, role } = await requireRole(["admin", "manager", "user", "guest"]);
 
   const { data: profile } = await supabase
     .from("profiles")

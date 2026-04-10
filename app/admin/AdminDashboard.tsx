@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 
-export default function AdminDashboard() {
+type Role = "admin" | "manager" | "user" | "guest";
+
+export default function AdminDashboard({ role }: { role: Role }) {
   const [deleteMsg, setDeleteMsg] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
 
@@ -227,47 +229,49 @@ export default function AdminDashboard() {
           </div>
         </Link>
 
-        <div
-          style={{
-            background: "white",
-            border: "2px solid #dc2626",
-            borderRadius: 12,
-            padding: 24,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-            height: "100%",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-          }}
-        >
-          <div>
-            <h2 style={{ fontSize: 24, fontWeight: 800, color: "#dc2626", marginBottom: 8 }}>
-              🗑️ Delete All Activation Data
-            </h2>
-            <p style={{ fontSize: 14, color: "#6b7280", margin: 0 }}>
-              WEB DEV ONLY. Clears all activation uploads and related activation records.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={deleteAllActivationData}
-            disabled={deletingAll}
+        {role === "admin" && (
+          <div
             style={{
-              marginTop: 16,
-              padding: 10,
-              background: "#fef2f2",
-              borderRadius: 8,
-              color: "#dc2626",
-              border: "1px solid rgba(220,38,38,0.35)",
-              fontWeight: 800,
-              textAlign: "center",
-              cursor: deletingAll ? "not-allowed" : "pointer",
-              opacity: deletingAll ? 0.7 : 1,
+              background: "white",
+              border: "2px solid #dc2626",
+              borderRadius: 12,
+              padding: 24,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
             }}
           >
-            {deletingAll ? "Deleting..." : "Delete All →"}
-          </button>
-        </div>
+            <div>
+              <h2 style={{ fontSize: 24, fontWeight: 800, color: "#dc2626", marginBottom: 8 }}>
+                🗑️ Delete All Activation Data
+              </h2>
+              <p style={{ fontSize: 14, color: "#6b7280", margin: 0 }}>
+                WEB DEV ONLY. Clears all activation uploads and related activation records.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={deleteAllActivationData}
+              disabled={deletingAll}
+              style={{
+                marginTop: 16,
+                padding: 10,
+                background: "#fef2f2",
+                borderRadius: 8,
+                color: "#dc2626",
+                border: "1px solid rgba(220,38,38,0.35)",
+                fontWeight: 800,
+                textAlign: "center",
+                cursor: deletingAll ? "not-allowed" : "pointer",
+                opacity: deletingAll ? 0.7 : 1,
+              }}
+            >
+              {deletingAll ? "Deleting..." : "Delete All →"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

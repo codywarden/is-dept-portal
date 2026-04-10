@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "../../../lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 export async function POST(req: Request) {
   const supabase = await createSupabaseServer();
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     .single();
 
   const myRole = (myProfile?.role ?? "viewer") as Role;
-  if (myRole !== "admin") {
+  if (myRole !== "admin" && myRole !== "manager") {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 

@@ -5,7 +5,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface FrankieClientProps {
-  role: "admin" | "verifier" | "viewer";
+  role: "admin" | "manager" | "user" | "guest";
   profile: {
     email: string;
     firstName: string;
@@ -67,7 +67,8 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
   const [firmwareOpen, setFirmwareOpen] = useState(false);
 
   // Only admin and verifier can control Frankie
-  const canControl = role === "admin" || role === "verifier";
+  // Anyone who can reach this page either is admin or has the frankie page permission
+  const canControl = role === "admin" || profile.pagePermissions?.["frankie"] === true;
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const isDragging = useRef(false);

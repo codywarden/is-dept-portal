@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 type AdminRow = {
   id: string;
@@ -62,7 +62,7 @@ export default function AdminClient({ initialUsers }: { initialUsers: AdminRow[]
     firstName: "",
     lastName: "",
     location: "",
-    role: "viewer" as Role,
+    role: "user" as Role,
   });
   const [loading, setLoading] = useState(false);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
@@ -277,7 +277,7 @@ export default function AdminClient({ initialUsers }: { initialUsers: AdminRow[]
       firstName: "",
       lastName: "",
       location: "",
-      role: "viewer",
+      role: "user",
     });
     setAttemptedSubmit(false);
   }
@@ -653,8 +653,9 @@ export default function AdminClient({ initialUsers }: { initialUsers: AdminRow[]
                       }}
                     >
                       <option value="">Select Role *</option>
-                      <option value="viewer">Viewer</option>
-                      <option value="verifier">Verifier</option>
+                      <option value="user">User</option>
+                      <option value="guest">Guest</option>
+                      <option value="manager">Manager</option>
                       <option value="admin">Admin</option>
                     </select>
                   </div>
@@ -1217,8 +1218,9 @@ function UserRow({
             minWidth: 120,
           }}
         >
-          <option value="viewer">viewer</option>
-          <option value="verifier">verifier</option>
+          <option value="user">user</option>
+          <option value="guest">guest</option>
+          <option value="manager">manager</option>
           <option value="admin">admin</option>
         </select>
 

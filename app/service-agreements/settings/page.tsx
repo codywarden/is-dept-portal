@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function SettingsPage() {
-  await requireRole(["admin"]);
+  await requireRole(["admin", "manager"]);
 
   return <SettingsClient />;
 }

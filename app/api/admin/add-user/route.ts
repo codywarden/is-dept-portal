@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (profile?.role !== "admin" && profile?.role !== "manager") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { email, password, firstName, lastName, location, locations, role, cell_phone } =
       await req.json();
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
           last_name: lastName || null,
           location: location || (Array.isArray(locations) ? locations[0] : null) || null,
           locations: Array.isArray(locations) ? locations : (location ? [location] : []),
-          role: role || "viewer",
+          role: role || "user",
           cell_phone: cell_phone || null,
         },
         { onConflict: "id" }

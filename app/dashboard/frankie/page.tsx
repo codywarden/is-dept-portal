@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import FrankieClient from "./FrankieClient";
 import { requireUser } from "../../lib/auth/requireRole";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 export default async function FrankiePage() {
   const { supabase, user } = await requireUser();
@@ -16,10 +16,10 @@ export default async function FrankiePage() {
     .eq("id", user.id)
     .single();
 
-  const role = ((profile?.role ?? "viewer") as Role);
+  const role = ((profile?.role ?? "user") as Role);
   const pagePermissions = (profile?.page_permissions as Record<string, boolean> | null) ?? {};
 
-  // Admins always have access; others need the frankie permission
+  // Admins always have access; everyone else needs the frankie permission
   if (role !== "admin" && !pagePermissions["frankie"]) {
     redirect("/dashboard");
   }

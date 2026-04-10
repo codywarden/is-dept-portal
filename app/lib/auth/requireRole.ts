@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServer } from "../supabase/server";
 
-type Role = "admin" | "verifier" | "viewer";
+export type Role = "admin" | "manager" | "user" | "guest";
 
 export async function requireUser() {
   const supabase = await createSupabaseServer(); // ✅ MUST await
@@ -19,7 +19,7 @@ export async function requireRole(allowed: Role[]) {
     .eq("id", user.id)
     .single();
 
-  const role = (profile?.role ?? "viewer") as Role;
+  const role = (profile?.role ?? "user") as Role;
 
   if (!allowed.includes(role)) redirect("/dashboard");
 

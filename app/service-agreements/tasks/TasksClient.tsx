@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 type Task = {
   id: string;
@@ -214,7 +214,7 @@ export default function TasksClient({ role }: { role: Role }) {
             fontWeight: 500,
           }}
         />
-        {(role === "admin" || role === "verifier") && (
+        {(role === "admin" || role === "manager") && (
           <button
             className="btn-primary"
             onClick={addTask}

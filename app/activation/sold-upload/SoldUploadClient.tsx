@@ -8,7 +8,7 @@ function formatUploadLabel(uploadNumber: number | null | undefined) {
   return `${year}-${uploadNumber}`;
 }
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 type SoldItem = {
   id: string;
@@ -545,7 +545,7 @@ export default function SoldUploadClient({ role, userLocation }: { role: Role; u
                     Location: {editingId === it.id ? (
                       <div style={{ display: "grid", gap: 6 }}>
                         <div style={{ fontWeight: 700 }}>{it.location ?? "—"}</div>
-                        {soldToChangeLocationEnabled && (role === "admin" || role === "verifier") && (
+                        {soldToChangeLocationEnabled && (role === "admin" || role === "manager") && (
                           <button
                             className="btn-secondary btn-sm"
                             onClick={() => {

@@ -6,7 +6,7 @@ export const metadata = {
 };
 
 export default async function ChangeLocationPage() {
-  await requireRole(["admin"]);
+  await requireRole(["admin", "manager"]);
 
   return <ChangeLocationClient />;
 }

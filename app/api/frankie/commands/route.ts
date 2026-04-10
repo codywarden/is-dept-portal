@@ -32,17 +32,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user profile to check role
+    // Get user profile to check role and page permissions
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, page_permissions")
       .eq("id", session.user.id)
       .single();
 
-    const role = profile?.role ?? "viewer";
+    const role = profile?.role ?? "user";
+    const pagePermissions = (profile?.page_permissions ?? {}) as Record<string, boolean>;
 
-    // Only admin and verifier can send commands
-    if (role !== "admin" && role !== "verifier") {
+    // Admin always allowed; everyone else needs the frankie page permission
+    if (role !== "admin" && pagePermissions["frankie"] !== true) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 

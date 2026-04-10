@@ -1,7 +1,7 @@
 "use client";
 
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 export default function ActivationClient({ role }: { role: Role }) {
   return (
@@ -52,7 +52,7 @@ export default function ActivationClient({ role }: { role: Role }) {
           href="/activation/check"
           description="Enter and compare cost and sold account totals from the business system by location."
         />
-        {role === "admin" && (
+        {(role === "admin" || role === "manager") && (
           <Card
             title="Change Location"
             href="/activation/change-location"

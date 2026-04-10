@@ -4,7 +4,7 @@ export const revalidate = 0;
 import DashboardClient from "./DashboardClient";
 import { requireUser } from "../lib/auth/requireRole";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 export default async function DashboardPage() {
   const { supabase, user } = await requireUser();
@@ -15,7 +15,7 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
-  const role = ((profile?.role ?? "viewer") as Role);
+  const role = ((profile?.role ?? "user") as Role);
 
 return (
   <DashboardClient

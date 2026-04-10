@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 type CostItem = {
   id: string;
@@ -910,7 +910,7 @@ export default function ReconcileClient({ role, canAutoReconcile }: { role: Role
                   <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 800 }}>
                     Item #: {item.item_number || "—"}
                   </div>
-                  {soldToChangeLocationEnabled && (role === "admin" || role === "verifier") && (
+                  {soldToChangeLocationEnabled && (role === "admin" || role === "manager") && (
                     <button
                       className="btn-secondary btn-sm"
                       onClick={() => {

@@ -11,14 +11,14 @@ export default async function CheckPage() {
   const supabase = await createSupabaseServer();
   const { data: authData } = await supabase.auth.getUser();
 
-  let role: "admin" | "verifier" | "viewer" = "viewer";
+  let role: "admin" | "manager" | "user" | "guest" = "user";
   if (authData.user) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", authData.user.id)
       .single();
-    role = (profile?.role ?? "viewer") as "admin" | "verifier" | "viewer";
+    role = (profile?.role ?? "user") as "admin" | "manager" | "user" | "guest";
   }
 
   return <CheckClient role={role} />;

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 type AdminRow = {
   id: string;
@@ -97,7 +97,7 @@ export default function UsersClient({ initialUsers, canAddUser, canDeleteUser, c
     firstName: "",
     lastName: "",
     locations: [] as string[],
-    role: "viewer" as Role,
+    role: "user" as Role,
     cell_phone: "",
   });
   const [loading, setLoading] = useState(false);
@@ -207,7 +207,7 @@ export default function UsersClient({ initialUsers, canAddUser, canDeleteUser, c
     setUsers((prev) => [newUser, ...prev]);
     setMsg("User added successfully ✅");
     setShowAddForm(false);
-    setFormData({ email: "", password: "", firstName: "", lastName: "", locations: [], role: "viewer", cell_phone: "" });
+    setFormData({ email: "", password: "", firstName: "", lastName: "", locations: [], role: "user", cell_phone: "" });
     setAttemptedSubmit(false);
   }
 
@@ -392,9 +392,10 @@ export default function UsersClient({ initialUsers, canAddUser, canDeleteUser, c
                 }}
               >
                 <option value="">Select Role *</option>
-                <option value="viewer">Viewer</option>
-                <option value="verifier">Verifier</option>
-                <option value="admin">Admin</option>
+                <option value="user">User</option>
+                <option value="guest">Guest</option>
+                {canAssignAdmin && <option value="manager">Manager</option>}
+                {canAssignAdmin && <option value="admin">Admin</option>}
               </select>
             </div>
 
@@ -832,7 +833,7 @@ function UserRow({
             }}>
               <div style={{ fontWeight: 800, fontSize: 14, color: "#111827", marginBottom: 8 }}>Role</div>
               <div style={{ display: "grid", gap: 5 }}>
-                {(["viewer", "verifier", ...(canAssignAdmin ? ["admin"] : [])] as Role[]).map((r) => (
+                {(["user", "guest", ...(canAssignAdmin ? ["manager", "admin"] : [])] as Role[]).map((r) => (
                   <label key={r} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: "#374151", fontWeight: 600 }}>
                     <input
                       type="checkbox"

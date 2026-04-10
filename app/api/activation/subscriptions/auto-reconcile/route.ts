@@ -20,7 +20,7 @@ async function getUserRole() {
     .select("role, page_permissions")
     .eq("id", authData.user.id)
     .single();
-  const role = (profile?.role ?? "viewer") as "admin" | "verifier" | "viewer";
+  const role = (profile?.role ?? "user") as "admin" | "manager" | "user" | "guest";
   const perms = (profile?.page_permissions ?? {}) as Record<string, boolean>;
   const canAutoReconcile = role === "admin" || perms["activation/auto-reconcile"] === true;
   return { user: authData.user, role, canAutoReconcile };
