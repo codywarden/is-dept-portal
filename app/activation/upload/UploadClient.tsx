@@ -44,7 +44,7 @@ type SoldUploadResult = {
   items: SoldUploadResultItem[];
 };
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 export default function UploadClient({ role }: { role: Role }) {
   const [file, setFile] = useState<File | null>(null);

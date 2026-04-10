@@ -28,7 +28,7 @@ type CostItem = {
   created_at: string | null;
 };
 
-type Role = "admin" | "verifier" | "viewer";
+type Role = "admin" | "manager" | "user" | "guest";
 
 type LocationChangeRequest = {
   id: string;
