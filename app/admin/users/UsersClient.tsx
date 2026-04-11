@@ -497,7 +497,8 @@ function UserRow({
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [editSaveStatus, setEditSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const isFirstRender = useRef(true);
   const isEditFirstChange = useRef(true);
@@ -512,7 +513,7 @@ function UserRow({
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     setSaveStatus("saving");
     debounceTimer.current = setTimeout(async () => {
-      await fetch("/api/admin/update-profile", {
+      const res = await fetch("/api/admin/update-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -520,8 +521,15 @@ function UserRow({
           patch: { locations: locs, page_permissions: perms },
         }),
       });
-      setSaveStatus("saved");
-      setTimeout(() => setSaveStatus("idle"), 2000);
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setSaveError(d?.error ?? "Failed to save");
+        setSaveStatus("error");
+      } else {
+        setSaveError(null);
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2000);
+      }
     }, 1200);
   }, [locs, perms]);
 
@@ -904,8 +912,8 @@ function UserRow({
 
           </div>
 
-          <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700, color: saveStatus === "saved" ? "#367C2B" : "#6b7280", visibility: saveStatus === "idle" ? "hidden" : "visible" }}>
-            {saveStatus === "saving" ? "Saving…" : "Saved ✓"}
+          <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700, color: saveStatus === "saved" ? "#367C2B" : saveStatus === "error" ? "#dc2626" : "#6b7280", visibility: saveStatus === "idle" ? "hidden" : "visible" }}>
+            {saveStatus === "saving" ? "Saving…" : saveStatus === "error" ? `Error: ${saveError}` : "Saved ✓"}
           </div>
         </div>
       )}

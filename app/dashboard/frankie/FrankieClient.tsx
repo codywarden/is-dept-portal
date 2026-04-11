@@ -258,9 +258,9 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
           <p className="text-sm text-green-600 mt-1">
             Welcome, {profile.firstName} ({role})
             <span className="ml-2">
-              {realtimeStatus === "connected"
-                ? <span className="text-green-500">● live</span>
-                : realtimeStatus === "connecting"
+              {realtimeStatus === "connected" && esp32Status?.status === "online"
+                ? <span className="text-green-500">● connected</span>
+                : realtimeStatus === "connecting" || statusLoading
                 ? <span className="text-yellow-500">● connecting</span>
                 : <span className="text-red-500">● offline</span>}
             </span>

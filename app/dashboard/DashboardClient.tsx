@@ -100,7 +100,7 @@ export default function DashboardClient({
 
         {/* Keep this debug */}
         <div style={{ color: "red", marginTop: 8, fontWeight: 700 }}>
-          ROLE: {role}
+          ROLE: {role} | PERMS: {JSON.stringify(profile.pagePermissions)}
         </div>
       </header>
 

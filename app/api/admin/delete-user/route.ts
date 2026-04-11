@@ -22,14 +22,18 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Attempt to delete auth user (ignore error if not found)
-    try {
-      const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
-      if (delErr) {
-        console.warn("Auth delete error (ignored if user missing):", delErr.message);
+    // Delete auth user (fail if it errors, unless the user simply doesn't exist)
+    const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    if (delErr) {
+      const errMsg = delErr.message ?? String(delErr);
+      const notFound =
+        errMsg.toLowerCase().includes("not found") ||
+        errMsg.toLowerCase().includes("does not exist") ||
+        errMsg.toLowerCase().includes("invalid user");
+      if (!notFound) {
+        return NextResponse.json({ error: `Failed to delete auth user: ${errMsg}` }, { status: 500 });
       }
-    } catch (e) {
-      console.warn("Auth delete threw (ignored):", e);
+      console.warn("Auth user not found during delete (profile-only cleanup):", errMsg);
     }
 
     // Delete profile row

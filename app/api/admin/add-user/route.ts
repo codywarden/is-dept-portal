@@ -54,7 +54,29 @@ export async function POST(req: NextRequest) {
         if (existingProfiles && existingProfiles.length > 0) {
           userId = existingProfiles[0].id;
         } else {
-          return NextResponse.json({ error: msg }, { status: 400 });
+          // Auth user exists but profile was deleted (orphaned from a failed delete).
+          // Look up the orphaned auth user directly from auth.users by email.
+          const { data: authUserRow, error: authLookupErr } = await supabaseAdmin
+            .schema("auth")
+            .from("users")
+            .select("id")
+            .eq("email", email)
+            .single();
+
+          if (authLookupErr || !authUserRow) {
+            return NextResponse.json({ error: msg }, { status: 400 });
+          }
+
+          // Update their password to the newly supplied one and reuse their ID
+          const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(
+            authUserRow.id,
+            { password, email_confirm: true }
+          );
+          if (updateErr) {
+            return NextResponse.json({ error: updateErr.message }, { status: 500 });
+          }
+
+          userId = authUserRow.id;
         }
       } else {
         return NextResponse.json({ error: msg }, { status: 400 });
