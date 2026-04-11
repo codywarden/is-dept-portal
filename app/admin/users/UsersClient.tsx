@@ -45,7 +45,13 @@ const PAGE_GROUPS: {
   },
   { key: "see-spray", label: "See & Spray", subpages: [] },
   { key: "sprayers", label: "Sprayers", subpages: [] },
-  { key: "frankie", label: "Frankie (Tractor Control)", subpages: [] },
+  {
+    key: "frankie",
+    label: "Frankie (Tractor Control)",
+    subpages: [
+      { key: "frankie_firmware", label: "Firmware Management" },
+    ],
+  },
   {
     key: "activation",
     label: "Activation",

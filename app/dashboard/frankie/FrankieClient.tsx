@@ -58,8 +58,8 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
   const [lastCommand, setLastCommand] = useState<string>("");
   const [esp32Status, setEsp32Status] = useState<ESP32Status | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
-  const [smallMovePixels, setSmallMovePixels] = useState(200);
-  const [largeMovePixels, setLargeMovePixels] = useState(500);
+  const [smallMovePixels, setSmallMovePixels] = useState(150);
+  const [largeMovePixels, setLargeMovePixels] = useState(250);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [trackpadSensitivity, setTrackpadSensitivity] = useState(2);
   const [shiftActive, setShiftActive] = useState(false);
@@ -69,6 +69,7 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
   // Only admin and verifier can control Frankie
   // Anyone who can reach this page either is admin or has the frankie page permission
   const canControl = role === "admin" || profile.pagePermissions?.["frankie"] === true;
+  const canManageFirmware = role === "admin" || profile.pagePermissions?.["frankie_firmware"] === true;
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const isDragging = useRef(false);
@@ -169,7 +170,7 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
         if (res.ok) {
           const data = await res.json();
           setEsp32Status(data);
-          if (role === "admin") fetchFirmwareData(data.firmware_version);
+          if (canManageFirmware) fetchFirmwareData(data.firmware_version);
         }
       } catch (e) { console.error(e); }
       finally { setStatusLoading(false); }
@@ -276,24 +277,6 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
         {/* Control Panel */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6 border-t-4 border-green-700">
 
-          {/* Enter + Click */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <button
-              onClick={() => sendCommand("enter")}
-              disabled={loading || !canControl}
-              className={`py-5 rounded-lg font-semibold text-lg transition-all active:scale-95 ${canControl ? "bg-green-600 hover:bg-green-700 text-white shadow-lg" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
-            >
-              ⌨️ Enter
-            </button>
-            <button
-              onClick={() => { broadcastCommand({ command: "mouse_click" }); setLastCommand(`mouse_click - ${new Date().toLocaleTimeString()}`); }}
-              disabled={!canControl}
-              className={`py-5 rounded-lg font-semibold text-lg transition-all active:scale-95 ${canControl ? "bg-green-600 hover:bg-green-700 text-white shadow-lg" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
-            >
-              🖱️ Click
-            </button>
-          </div>
-
           {/* Trackpad */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -323,6 +306,13 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
                 {canControl ? "drag to move · tap to click" : "no permission"}
               </p>
             </div>
+            <button
+              onClick={() => { broadcastCommand({ command: "mouse_click" }); setLastCommand(`mouse_click - ${new Date().toLocaleTimeString()}`); }}
+              disabled={!canControl}
+              className={`mt-3 w-full py-3 rounded-lg font-semibold text-base transition-all active:scale-95 ${canControl ? "bg-green-600 hover:bg-green-700 text-white shadow-lg" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+            >
+              🖱️ Click
+            </button>
           </div>
 
           {/* Nudge */}
@@ -436,7 +426,7 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
         </div>
 
         {/* Firmware Management - Admin Only, collapsible */}
-        {role === "admin" && (
+        {canManageFirmware && (
           <div className="bg-white rounded-lg shadow-lg mb-8 border-t-4 border-yellow-500 overflow-hidden">
             <button
               onClick={() => setFirmwareOpen((v) => !v)}

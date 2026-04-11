@@ -58,9 +58,10 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { data: profile } = await supabase
-      .from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "admin") {
-      return NextResponse.json({ error: "Admin only" }, { status: 403 });
+      .from("profiles").select("role, page_permissions").eq("id", user.id).single();
+    const canFirmware = profile?.role === "admin" || (profile?.page_permissions as Record<string, boolean> | null)?.["frankie_firmware"] === true;
+    if (!canFirmware) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const formData = await req.formData();
@@ -133,9 +134,10 @@ export async function PATCH(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { data: profile } = await supabase
-      .from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "admin") {
-      return NextResponse.json({ error: "Admin only" }, { status: 403 });
+      .from("profiles").select("role, page_permissions").eq("id", user.id).single();
+    const canFirmware = profile?.role === "admin" || (profile?.page_permissions as Record<string, boolean> | null)?.["frankie_firmware"] === true;
+    if (!canFirmware) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await req.json();

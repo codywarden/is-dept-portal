@@ -19,8 +19,8 @@ export default async function FrankiePage() {
   const role = ((profile?.role ?? "user") as Role);
   const pagePermissions = (profile?.page_permissions as Record<string, boolean> | null) ?? {};
 
-  // Admins always have access; everyone else needs the frankie permission
-  if (role !== "admin" && !pagePermissions["frankie"]) {
+  // Admins always have access; everyone else needs the frankie or frankie_firmware permission
+  if (role !== "admin" && !pagePermissions["frankie"] && !pagePermissions["frankie_firmware"]) {
     redirect("/dashboard");
   }
 
