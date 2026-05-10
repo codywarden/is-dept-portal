@@ -30,7 +30,7 @@ const LOCATIONS_DEFAULT = [
 const PAGE_GROUPS: {
   key: string;
   label: string;
-  subpages: { key: string; label: string }[];
+  subpages: { key: string; label: string; children?: { key: string; label: string }[] }[];
 }[] = [
   {
     key: "admin",
@@ -50,8 +50,13 @@ const PAGE_GROUPS: {
     label: "Frankie (Tractor Control)",
     subpages: [
       { key: "frankie/planter", label: "Planter Status" },
-      { key: "frankie/remote", label: "Remote Control" },
-      { key: "frankie_firmware", label: "Firmware Management" },
+      {
+        key: "frankie/remote",
+        label: "Remote Control",
+        children: [
+          { key: "frankie_firmware", label: "Remote Firmware Update" },
+        ],
+      },
     ],
   },
   {
@@ -600,10 +605,21 @@ function UserRow({
     setPerms((prev) => ({ ...prev, [key]: value }));
   }
 
-  function toggleGroup(groupKey: string, subpages: { key: string }[], value: boolean) {
+  function toggleGroup(groupKey: string, subpages: { key: string; children?: { key: string }[] }[], value: boolean) {
     setPerms((prev) => {
       const next = { ...prev, [groupKey]: value };
-      for (const s of subpages) next[s.key] = value;
+      for (const s of subpages) {
+        next[s.key] = value;
+        for (const c of s.children ?? []) next[c.key] = value;
+      }
+      return next;
+    });
+  }
+
+  function toggleSubPage(key: string, children: { key: string }[], value: boolean) {
+    setPerms((prev) => {
+      const next = { ...prev, [key]: value };
+      for (const c of children) next[c.key] = value;
       return next;
     });
   }
@@ -901,18 +917,39 @@ function UserRow({
                   </label>
                   {group.subpages.length > 0 && (
                     <div style={{ marginTop: 8, paddingLeft: 24, display: "grid", gap: 5 }}>
-                      {group.subpages.map((sub) => (
-                        <label key={sub.key} style={{ display: "flex", alignItems: "center", gap: 6, cursor: groupOn ? "pointer" : "not-allowed", fontSize: 13, color: groupOn ? "#374151" : "#9ca3af", fontWeight: 600, opacity: groupOn ? 1 : 0.5 }}>
-                          <input
-                            type="checkbox"
-                            checked={perms[sub.key] === true}
-                            disabled={!groupOn}
-                            onChange={(e) => togglePerm(sub.key, e.target.checked)}
-                            style={{ accentColor: "#367C2B" }}
-                          />
-                          {sub.label}
-                        </label>
-                      ))}
+                      {group.subpages.map((sub) => {
+                        const subOn = perms[sub.key] === true;
+                        return (
+                          <div key={sub.key}>
+                            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: groupOn ? "pointer" : "not-allowed", fontSize: 13, color: groupOn ? "#374151" : "#9ca3af", fontWeight: 600, opacity: groupOn ? 1 : 0.5 }}>
+                              <input
+                                type="checkbox"
+                                checked={subOn}
+                                disabled={!groupOn}
+                                onChange={(e) => toggleSubPage(sub.key, sub.children ?? [], e.target.checked)}
+                                style={{ accentColor: "#367C2B" }}
+                              />
+                              {sub.label}
+                            </label>
+                            {sub.children && sub.children.length > 0 && (
+                              <div style={{ paddingLeft: 20, marginTop: 4, display: "grid", gap: 4 }}>
+                                {sub.children.map((child) => (
+                                  <label key={child.key} style={{ display: "flex", alignItems: "center", gap: 6, cursor: groupOn && subOn ? "pointer" : "not-allowed", fontSize: 12, color: groupOn && subOn ? "#6b7280" : "#9ca3af", fontWeight: 600, opacity: groupOn && subOn ? 1 : 0.4 }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={perms[child.key] === true}
+                                      disabled={!groupOn || !subOn}
+                                      onChange={(e) => togglePerm(child.key, e.target.checked)}
+                                      style={{ accentColor: "#367C2B" }}
+                                    />
+                                    {child.label}
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
