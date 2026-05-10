@@ -5,13 +5,23 @@ import { useRouter, usePathname } from "next/navigation";
 
 const HIDDEN_PATHS = new Set(["/", "/dashboard", "/login"]);
 
+// When adding a new page with a non-default background, add its path prefix here.
+// The first matching prefix wins. Default is the site grey (#d7d9cc).
+const PAGE_BACKGROUNDS: [prefix: string, background: string][] = [
+  ["/dashboard/frankie", "linear-gradient(to bottom right, #f0fdf4, #dcfce7)"],
+];
+
+function getBackground(pathname: string): string {
+  return (
+    PAGE_BACKGROUNDS.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? "#d7d9cc"
+  );
+}
+
 export default function BackButton() {
   const router = useRouter();
   const pathname = usePathname();
 
   if (HIDDEN_PATHS.has(pathname)) return null;
-
-  const isFrankie = pathname.startsWith("/dashboard/frankie");
 
   const btnBase: React.CSSProperties = {
     display: "inline-block",
@@ -32,7 +42,7 @@ export default function BackButton() {
         justifyContent: "space-between",
         alignItems: "center",
         padding: "12px 24px",
-        background: isFrankie ? "linear-gradient(to bottom right, #f0fdf4, #dcfce7)" : "#d7d9cc",
+        background: getBackground(pathname),
       }}
     >
       <button
