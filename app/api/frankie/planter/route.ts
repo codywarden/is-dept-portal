@@ -1,0 +1,76 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseAdmin } from "@/app/lib/supabase/admin";
+
+// GET — dashboard fetches latest planter status
+export async function GET() {
+  try {
+    const supabase = createSupabaseAdmin();
+
+    const { data, error } = await supabase
+      .from("planter_status")
+      .select("*")
+      .eq("id", "default")
+      .single();
+
+    if (error && error.code !== "PGRST116") {
+      console.error("Database error:", error);
+      return NextResponse.json({ error: "Database error" }, { status: 500 });
+    }
+
+    if (!data) {
+      return NextResponse.json({ status: "offline", last_seen: null });
+    }
+
+    const secondsSinceLastSeen = data.last_seen
+      ? (Date.now() - new Date(data.last_seen).getTime()) / 1000
+      : Infinity;
+
+    return NextResponse.json({
+      ...data,
+      status: secondsSinceLastSeen < 90 ? "online" : "offline",
+      seconds_since_last_seen: Math.round(secondsSinceLastSeen),
+    });
+  } catch (error) {
+    console.error("API error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// POST — ESP32 posts telemetry (unauthenticated, service role key)
+export async function POST(req: NextRequest) {
+  try {
+    const supabase = createSupabaseAdmin();
+    const body = await req.json();
+
+    const {
+      firmware_version, ip_address, wifi_ssid,
+      speed_mph, armed, height, output_on, output_reason,
+      seed_fault, seed_fault_row, vac_fault,
+      sentinel_alarm, sentinel_target_gal, sentinel_avg_gal,
+      live_thresh, sentinel_en, seed_en, vac_en,
+    } = body;
+
+    const { error } = await supabase
+      .from("planter_status")
+      .upsert({
+        id: "default",
+        last_seen: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        firmware_version, ip_address, wifi_ssid,
+        speed_mph, armed, height, output_on, output_reason,
+        seed_fault, seed_fault_row, vac_fault,
+        sentinel_alarm, sentinel_target_gal, sentinel_avg_gal,
+        live_thresh, sentinel_en, seed_en, vac_en,
+      }, { onConflict: "id" });
+
+    if (error) {
+      console.error("Database error:", error);
+      return NextResponse.json({ error: "Failed to update status" }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("API error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

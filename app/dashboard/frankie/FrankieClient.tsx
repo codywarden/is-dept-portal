@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import PlanterCard from "./PlanterCard";
 
 interface FrankieClientProps {
   role: "admin" | "manager" | "user" | "guest";
@@ -273,6 +274,9 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
             <p className="text-yellow-700">⚠️ Your role ({role}) does not have permission to control Frankie.</p>
           </div>
         )}
+
+        {/* Planter Monitor */}
+        <PlanterCard />
 
         {/* Control Panel */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6 border-t-4 border-green-700">
