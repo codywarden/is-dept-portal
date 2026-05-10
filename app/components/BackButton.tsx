@@ -9,7 +9,7 @@ export default function BackButton() {
   const router = useRouter();
   const pathname = usePathname();
 
-  if (HIDDEN_PATHS.has(pathname)) return null;
+  if (HIDDEN_PATHS.has(pathname) || pathname.startsWith("/dashboard/frankie")) return null;
 
   const btnBase: React.CSSProperties = {
     display: "inline-block",
