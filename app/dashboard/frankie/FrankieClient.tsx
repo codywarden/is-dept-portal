@@ -66,6 +66,8 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
   const [shiftActive, setShiftActive] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [firmwareOpen, setFirmwareOpen] = useState(false);
+  const [trackpadOpen, setTrackpadOpen] = useState(false);
+  const [nudgeOpen, setNudgeOpen] = useState(false);
 
   // Only admin and verifier can control Frankie
   // Anyone who can reach this page either is admin or has the frankie page permission
@@ -251,7 +253,7 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 p-4 md:p-8">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-4xl mx-auto">
 
         {/* Header */}
         <div className="text-center mb-8">
@@ -275,131 +277,173 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
           </div>
         )}
 
-        {/* Planter Monitor */}
-        <PlanterCard />
+        {/* Two-card grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 items-start">
 
-        {/* Control Panel */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6 border-t-4 border-green-700">
+          {/* Card 1: Planter Monitor */}
+          <PlanterCard />
 
-          {/* Trackpad */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-base font-semibold text-green-800">Trackpad</h3>
-              <div className="flex items-center gap-1 text-sm text-green-700">
-                <span className="text-xs">Sensitivity:</span>
-                {[1, 2, 3, 5].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setTrackpadSensitivity(s)}
-                    className={`px-2 py-0.5 rounded text-xs font-semibold border transition-all ${trackpadSensitivity === s ? "bg-green-600 text-white border-green-600" : "bg-white text-green-700 border-green-300 hover:bg-green-50"}`}
-                  >
-                    {s}×
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div
-              onPointerDown={onTrackpadPointerDown}
-              onPointerMove={onTrackpadPointerMove}
-              onPointerUp={onTrackpadPointerUp}
-              onPointerCancel={onTrackpadPointerUp}
-              className={`w-full h-80 rounded-xl border-2 flex items-center justify-center select-none transition-colors ${canControl ? "border-green-400 bg-green-50 cursor-crosshair hover:bg-green-100 active:bg-green-200" : "border-gray-200 bg-gray-50 cursor-not-allowed"}`}
-              style={{ touchAction: "none" }}
-            >
-              <p className={`text-sm pointer-events-none ${canControl ? "text-green-400" : "text-gray-300"}`}>
-                {canControl ? "drag to move · tap to click" : "no permission"}
-              </p>
-            </div>
-            <button
-              onClick={() => { broadcastCommand({ command: "mouse_click" }); setLastCommand(`mouse_click - ${new Date().toLocaleTimeString()}`); }}
-              disabled={!canControl}
-              className={`mt-3 w-full py-3 rounded-lg font-semibold text-base transition-all active:scale-95 ${canControl ? "bg-green-600 hover:bg-green-700 text-white shadow-lg" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
-            >
-              🖱️ Click
-            </button>
-          </div>
-
-          {/* Nudge */}
-          <div className="mb-6">
-            <h3 className="text-base font-semibold text-green-800 mb-3">Nudge</h3>
-            <div className="flex justify-center gap-16">
-              {[
-                { label: "Small", color: "blue", px: smallMovePixels, set: setSmallMovePixels },
-                { label: "Large", color: "purple", px: largeMovePixels, set: setLargeMovePixels },
-              ].map(({ label, color, px, set }) => (
-                <div key={label} className="flex flex-col items-center gap-1">
-                  <span className={`text-xs font-semibold text-${color}-600`}>{label}</span>
-                  <div className="flex flex-col items-center gap-1">
-                    <button onClick={() => sendMouseMove(0, -px)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? `bg-${color}-500 hover:bg-${color}-600 text-white` : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>↑</button>
-                    <div className="flex gap-1">
-                      <button onClick={() => sendMouseMove(-px, 0)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? `bg-${color}-500 hover:bg-${color}-600 text-white` : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>←</button>
-                      <button onClick={() => sendMouseMove(px, 0)}  disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? `bg-${color}-500 hover:bg-${color}-600 text-white` : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>→</button>
-                    </div>
-                    <button onClick={() => sendMouseMove(0, px)}  disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? `bg-${color}-500 hover:bg-${color}-600 text-white` : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>↓</button>
-                  </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <label className="text-xs text-green-700">px:</label>
-                    <input type="number" min="1" max="1000" value={px} onChange={(e) => set(Math.max(1, Math.min(1000, parseInt(e.target.value) || 1)))} className="w-14 px-1 py-0.5 border border-green-300 rounded text-xs" disabled={!canControl} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Keyboard — collapsible */}
-          <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
-            <button
-              onClick={() => setKeyboardOpen((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-            >
-              <span className="text-base font-semibold text-green-800">
-                ⌨️ Keyboard
-                {shiftActive && <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold">SHIFT</span>}
+          {/* Card 2: Remote Control */}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden border-t-4 border-green-700">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-800">🎮 Remote</h3>
+              <span className="text-xs text-gray-400">
+                {realtimeStatus === "connected" ? "⚡ live" : realtimeStatus === "connecting" ? "⏳" : "○ offline"}
               </span>
-              <span className="text-gray-400">{keyboardOpen ? "▲" : "▼"}</span>
-            </button>
-            {keyboardOpen && (
-              <div className="p-3 space-y-1">
-                {KEYBOARD_ROWS.map((row, ri) => (
-                  <div key={ri} className="flex gap-1 justify-center flex-wrap">
-                    {row.map((key) => {
-                      const isShift  = key === "Shift";
-                      const isWide   = key === "Space" || key === "Enter" || key === "Bksp";
-                      const isActive = isShift && shiftActive;
-                      return (
-                        <button
-                          key={key}
-                          onPointerDown={(e) => { e.preventDefault(); pressKey(key); }}
-                          disabled={!canControl}
-                          className={`
-                            ${isWide ? "px-4 min-w-[64px]" : "w-9"} h-9 rounded text-xs font-semibold
-                            transition-all active:scale-95 select-none
-                            ${!canControl ? "bg-gray-100 text-gray-300 cursor-not-allowed" :
-                              isActive ? "bg-blue-500 text-white shadow" :
-                              isShift  ? "bg-gray-200 hover:bg-gray-300 text-gray-700" :
-                              key === "Enter" ? "bg-green-600 hover:bg-green-700 text-white" :
-                              key === "Bksp" || key === "Esc" ? "bg-red-100 hover:bg-red-200 text-red-700" :
-                              "bg-gray-100 hover:bg-gray-200 text-gray-800"
-                            }
-                          `}
-                        >
-                          {key === "Shift" ? "⇧" : key === "Bksp" ? "⌫" : key}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Status */}
-          {status && <div className="bg-green-50 border-l-4 border-green-600 p-3 rounded mb-4"><p className="text-green-700 font-semibold text-sm">{status}</p></div>}
-          {lastCommand && (
-            <div className="bg-gray-50 border-l-4 border-green-600 p-3 rounded">
-              <p className="text-gray-500 text-xs">Last: <span className="font-semibold text-green-700">{lastCommand}</span></p>
             </div>
-          )}
+            <div className="px-6 py-4">
+
+              {/* Enter — primary action */}
+              <button
+                onClick={() => sendCommand("enter")}
+                disabled={!canControl || loading}
+                className={`w-full py-6 rounded-xl text-xl font-bold mb-3 transition-all active:scale-95 shadow-md ${canControl ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+              >
+                ⏎ Enter
+              </button>
+
+              {/* Click */}
+              <button
+                onClick={() => { broadcastCommand({ command: "mouse_click" }); setLastCommand(`mouse_click - ${new Date().toLocaleTimeString()}`); }}
+                disabled={!canControl}
+                className={`w-full py-3 rounded-lg font-semibold text-base mb-4 transition-all active:scale-95 ${canControl ? "bg-green-100 hover:bg-green-200 text-green-800" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+              >
+                🖱️ Click
+              </button>
+
+              {/* Status feedback */}
+              {status && <div className="bg-green-50 border-l-4 border-green-600 p-3 rounded mb-3"><p className="text-green-700 font-semibold text-sm">{status}</p></div>}
+              {lastCommand && (
+                <div className="bg-gray-50 border-l-4 border-green-600 p-3 rounded mb-4">
+                  <p className="text-gray-500 text-xs">Last: <span className="font-semibold text-green-700">{lastCommand}</span></p>
+                </div>
+              )}
+
+              {/* Trackpad — collapsible */}
+              <div className="border border-gray-200 rounded-lg overflow-hidden mb-3">
+                <button
+                  onClick={() => setTrackpadOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                >
+                  <span className="text-sm font-semibold text-green-800">🖱️ Trackpad</span>
+                  <span className="text-gray-400 text-sm">{trackpadOpen ? "▲" : "▼"}</span>
+                </button>
+                {trackpadOpen && (
+                  <div className="p-4">
+                    <div className="flex items-center justify-end gap-1 mb-2">
+                      <span className="text-xs text-green-700">Sensitivity:</span>
+                      {[1, 2, 3, 5].map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setTrackpadSensitivity(s)}
+                          className={`px-2 py-0.5 rounded text-xs font-semibold border transition-all ${trackpadSensitivity === s ? "bg-green-600 text-white border-green-600" : "bg-white text-green-700 border-green-300 hover:bg-green-50"}`}
+                        >
+                          {s}×
+                        </button>
+                      ))}
+                    </div>
+                    <div
+                      onPointerDown={onTrackpadPointerDown}
+                      onPointerMove={onTrackpadPointerMove}
+                      onPointerUp={onTrackpadPointerUp}
+                      onPointerCancel={onTrackpadPointerUp}
+                      className={`w-full h-48 rounded-xl border-2 flex items-center justify-center select-none transition-colors ${canControl ? "border-green-400 bg-green-50 cursor-crosshair hover:bg-green-100 active:bg-green-200" : "border-gray-200 bg-gray-50 cursor-not-allowed"}`}
+                      style={{ touchAction: "none" }}
+                    >
+                      <p className={`text-sm pointer-events-none ${canControl ? "text-green-400" : "text-gray-300"}`}>
+                        {canControl ? "drag to move · tap to click" : "no permission"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Nudge — collapsible */}
+              <div className="border border-gray-200 rounded-lg overflow-hidden mb-3">
+                <button
+                  onClick={() => setNudgeOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                >
+                  <span className="text-sm font-semibold text-green-800">↑↓ Nudge</span>
+                  <span className="text-gray-400 text-sm">{nudgeOpen ? "▲" : "▼"}</span>
+                </button>
+                {nudgeOpen && (
+                  <div className="p-4">
+                    <div className="flex justify-center gap-16">
+                      {[
+                        { label: "Small", color: "blue", px: smallMovePixels, set: setSmallMovePixels },
+                        { label: "Large", color: "purple", px: largeMovePixels, set: setLargeMovePixels },
+                      ].map(({ label, color, px, set }) => (
+                        <div key={label} className="flex flex-col items-center gap-1">
+                          <span className={`text-xs font-semibold text-${color}-600`}>{label}</span>
+                          <div className="flex flex-col items-center gap-1">
+                            <button onClick={() => sendMouseMove(0, -px)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? `bg-${color}-500 hover:bg-${color}-600 text-white` : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>↑</button>
+                            <div className="flex gap-1">
+                              <button onClick={() => sendMouseMove(-px, 0)} disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? `bg-${color}-500 hover:bg-${color}-600 text-white` : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>←</button>
+                              <button onClick={() => sendMouseMove(px, 0)}  disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? `bg-${color}-500 hover:bg-${color}-600 text-white` : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>→</button>
+                            </div>
+                            <button onClick={() => sendMouseMove(0, px)}  disabled={!canControl} className={`py-1 px-3 rounded text-xs font-semibold ${canControl ? `bg-${color}-500 hover:bg-${color}-600 text-white` : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>↓</button>
+                          </div>
+                          <div className="flex items-center gap-1 mt-1">
+                            <label className="text-xs text-green-700">px:</label>
+                            <input type="number" min="1" max="1000" value={px} onChange={(e) => set(Math.max(1, Math.min(1000, parseInt(e.target.value) || 1)))} className="w-14 px-1 py-0.5 border border-green-300 rounded text-xs" disabled={!canControl} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Keyboard — collapsible */}
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setKeyboardOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                >
+                  <span className="text-sm font-semibold text-green-800">
+                    ⌨️ Keyboard
+                    {shiftActive && <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold">SHIFT</span>}
+                  </span>
+                  <span className="text-gray-400 text-sm">{keyboardOpen ? "▲" : "▼"}</span>
+                </button>
+                {keyboardOpen && (
+                  <div className="p-3 space-y-1">
+                    {KEYBOARD_ROWS.map((row, ri) => (
+                      <div key={ri} className="flex gap-1 justify-center flex-wrap">
+                        {row.map((key) => {
+                          const isShift  = key === "Shift";
+                          const isWide   = key === "Space" || key === "Enter" || key === "Bksp";
+                          const isActive = isShift && shiftActive;
+                          return (
+                            <button
+                              key={key}
+                              onPointerDown={(e) => { e.preventDefault(); pressKey(key); }}
+                              disabled={!canControl}
+                              className={`
+                                ${isWide ? "px-4 min-w-[64px]" : "w-9"} h-9 rounded text-xs font-semibold
+                                transition-all active:scale-95 select-none
+                                ${!canControl ? "bg-gray-100 text-gray-300 cursor-not-allowed" :
+                                  isActive ? "bg-blue-500 text-white shadow" :
+                                  isShift  ? "bg-gray-200 hover:bg-gray-300 text-gray-700" :
+                                  key === "Enter" ? "bg-green-600 hover:bg-green-700 text-white" :
+                                  key === "Bksp" || key === "Esc" ? "bg-red-100 hover:bg-red-200 text-red-700" :
+                                  "bg-gray-100 hover:bg-gray-200 text-gray-800"
+                                }
+                              `}
+                            >
+                              {key === "Shift" ? "⇧" : key === "Bksp" ? "⌫" : key}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
         </div>
 
         {/* Connection Status */}

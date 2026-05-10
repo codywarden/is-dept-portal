@@ -81,7 +81,7 @@ export default function PlanterCard() {
   const anyFault = planter?.output_on || planter?.seed_fault || planter?.vac_fault || planter?.sentinel_alarm;
 
   return (
-    <div className={`bg-white rounded-lg shadow-lg mb-6 overflow-hidden border-t-4 ${anyFault ? "border-red-500" : online ? "border-green-600" : "border-gray-300"}`}>
+    <div className={`bg-white rounded-lg shadow-lg overflow-hidden border-t-4 ${anyFault ? "border-red-500" : online ? "border-green-600" : "border-gray-300"}`}>
       <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-800">🌱 Frankie Planter</h3>
         <div className="flex items-center gap-2 text-sm">
