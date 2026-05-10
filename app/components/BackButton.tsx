@@ -9,7 +9,9 @@ export default function BackButton() {
   const router = useRouter();
   const pathname = usePathname();
 
-  if (HIDDEN_PATHS.has(pathname) || pathname.startsWith("/dashboard/frankie")) return null;
+  if (HIDDEN_PATHS.has(pathname)) return null;
+
+  const isFrankie = pathname.startsWith("/dashboard/frankie");
 
   const btnBase: React.CSSProperties = {
     display: "inline-block",
@@ -29,7 +31,8 @@ export default function BackButton() {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        padding: "12px 24px 0",
+        padding: "12px 24px",
+        background: isFrankie ? "linear-gradient(to bottom right, #f0fdf4, #dcfce7)" : "#d7d9cc",
       }}
     >
       <button
