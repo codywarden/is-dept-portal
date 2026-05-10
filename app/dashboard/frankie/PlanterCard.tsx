@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createBrowserClient } from "@supabase/ssr";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface PlanterStatus {
   status: "online" | "offline";
@@ -26,24 +28,56 @@ interface PlanterStatus {
   vac_en: boolean | null;
 }
 
+function deriveStatus(row: any): PlanterStatus {
+  const secondsSinceLastSeen = row.last_seen
+    ? (Date.now() - new Date(row.last_seen).getTime()) / 1000
+    : Infinity;
+  return {
+    ...row,
+    status: secondsSinceLastSeen < 90 ? "online" : "offline",
+    seconds_since_last_seen: Math.round(secondsSinceLastSeen),
+  };
+}
+
 export default function PlanterCard() {
   const [planter, setPlanter] = useState<PlanterStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
+  const channelRef = useRef<RealtimeChannel | null>(null);
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
   useEffect(() => {
-    const fetch_ = async () => {
-      try {
-        const res = await fetch("/api/frankie/planter");
-        if (res.ok) setPlanter(await res.json());
-      } catch (e) { console.error(e); }
-      finally { setLoading(false); }
-    };
-    fetch_();
-    const interval = setInterval(fetch_, 15000);
-    return () => clearInterval(interval);
-  }, []);
+    // Initial fetch
+    fetch("/api/frankie/planter")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setPlanter(d); })
+      .catch(console.error)
+      .finally(() => setLoading(false));
 
-  const online = planter?.status === "online";
+    // Realtime subscription — fires instantly when ESP32 upserts
+    const ch = supabase
+      .channel("planter_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "planter_status" },
+        (payload) => {
+          if (payload.new) setPlanter(deriveStatus(payload.new));
+        }
+      )
+      .subscribe((s) => {
+        if (s === "SUBSCRIBED")   setRealtimeStatus("connected");
+        else if (s === "CLOSED" || s === "CHANNEL_ERROR") setRealtimeStatus("disconnected");
+      });
+
+    channelRef.current = ch;
+    return () => { supabase.removeChannel(ch); channelRef.current = null; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const online   = planter?.status === "online";
   const anyFault = planter?.output_on || planter?.seed_fault || planter?.vac_fault || planter?.sentinel_alarm;
 
   return (
@@ -57,6 +91,9 @@ export default function PlanterCard() {
           {planter?.firmware_version && (
             <span className="text-xs text-gray-400">v{planter.firmware_version}</span>
           )}
+          <span className="text-xs text-gray-300">
+            {realtimeStatus === "connected" ? "⚡ live" : realtimeStatus === "connecting" ? "⏳" : "○ polling"}
+          </span>
         </div>
       </div>
 
@@ -134,14 +171,14 @@ function StatusCard({ label, value, alarm, ok, warn, dim, highlight }: {
   alarm?: boolean; ok?: boolean; warn?: boolean; dim?: boolean; highlight?: boolean;
 }) {
   const border = alarm ? "border-red-300 bg-red-50"
-    : ok ? "border-green-300 bg-green-50"
-    : warn ? "border-yellow-300 bg-yellow-50"
+    : ok      ? "border-green-300 bg-green-50"
+    : warn    ? "border-yellow-300 bg-yellow-50"
     : highlight ? "border-green-400 bg-green-50"
     : "border-gray-200 bg-gray-50";
   const text = alarm ? "text-red-600"
-    : ok ? "text-green-700"
+    : ok   ? "text-green-700"
     : warn ? "text-yellow-700"
-    : dim ? "text-gray-400"
+    : dim  ? "text-gray-400"
     : "text-gray-700";
   return (
     <div className={`border rounded-lg p-3 ${border}`}>
