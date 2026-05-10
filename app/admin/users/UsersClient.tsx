@@ -49,6 +49,8 @@ const PAGE_GROUPS: {
     key: "frankie",
     label: "Frankie (Tractor Control)",
     subpages: [
+      { key: "frankie/planter", label: "Planter Status" },
+      { key: "frankie/remote", label: "Remote Control" },
       { key: "frankie_firmware", label: "Firmware Management" },
     ],
   },
@@ -847,7 +849,7 @@ function UserRow({
             }}>
               <div style={{ fontWeight: 800, fontSize: 14, color: "#111827", marginBottom: 8 }}>Role</div>
               <div style={{ display: "grid", gap: 5 }}>
-                {(["user", "guest", ...(canAssignAdmin ? ["manager", "admin"] : [])] as Role[]).map((r) => (
+                {([...(canAssignAdmin ? ["admin", "manager"] : []), "user", "guest"] as Role[]).map((r) => (
                   <label key={r} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: "#374151", fontWeight: 600 }}>
                     <input
                       type="checkbox"
@@ -900,10 +902,11 @@ function UserRow({
                   {group.subpages.length > 0 && (
                     <div style={{ marginTop: 8, paddingLeft: 24, display: "grid", gap: 5 }}>
                       {group.subpages.map((sub) => (
-                        <label key={sub.key} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: "#374151", fontWeight: 600 }}>
+                        <label key={sub.key} style={{ display: "flex", alignItems: "center", gap: 6, cursor: groupOn ? "pointer" : "not-allowed", fontSize: 13, color: groupOn ? "#374151" : "#9ca3af", fontWeight: 600, opacity: groupOn ? 1 : 0.5 }}>
                           <input
                             type="checkbox"
                             checked={perms[sub.key] === true}
+                            disabled={!groupOn}
                             onChange={(e) => togglePerm(sub.key, e.target.checked)}
                             style={{ accentColor: "#367C2B" }}
                           />

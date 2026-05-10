@@ -19,7 +19,7 @@ export default async function PlanterPage() {
   const role = ((profile?.role ?? "user") as Role);
   const pagePermissions = (profile?.page_permissions as Record<string, boolean> | null) ?? {};
 
-  if (role !== "admin" && !pagePermissions["frankie"] && !pagePermissions["frankie_firmware"]) {
+  if (role !== "admin" && !pagePermissions["frankie"] && !pagePermissions["frankie/planter"] && !pagePermissions["frankie_firmware"]) {
     redirect("/dashboard");
   }
 

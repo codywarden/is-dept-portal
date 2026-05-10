@@ -24,20 +24,6 @@ interface ESP32Status {
   seconds_since_last_seen: number;
 }
 
-interface FirmwareRelease {
-  id: number;
-  version: string;
-  notes: string | null;
-  is_active: boolean;
-  created_at: string;
-}
-
-interface FirmwareCheck {
-  update_available: boolean;
-  version?: string;
-  notes?: string | null;
-}
-
 const KEYBOARD_ROWS = [
   ["1","2","3","4","5","6","7","8","9","0","Bksp"],
   ["Q","W","E","R","T","Y","U","I","O","P"],
@@ -64,28 +50,14 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
   const [trackpadSensitivity, setTrackpadSensitivity] = useState(2);
   const [shiftActive, setShiftActive] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
-  const [firmwareOpen, setFirmwareOpen] = useState(false);
 
-  // Only admin and verifier can control Frankie
-  // Anyone who can reach this page either is admin or has the frankie page permission
-  const canControl = role === "admin" || profile.pagePermissions?.["frankie"] === true;
-  const canManageFirmware = role === "admin" || profile.pagePermissions?.["frankie_firmware"] === true;
+  const canControl = role === "admin" || profile.pagePermissions?.["frankie"] === true || profile.pagePermissions?.["frankie/remote"] === true;
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const isDragging = useRef(false);
   const lastPointerPos = useRef({ x: 0, y: 0 });
   const dragStartPos = useRef({ x: 0, y: 0 });
   const lastSendTime = useRef(0);
-
-  // Firmware state
-  const [firmwareReleases, setFirmwareReleases] = useState<FirmwareRelease[]>([]);
-  const [firmwareCheck, setFirmwareCheck] = useState<FirmwareCheck | null>(null);
-  const [firmwareFile, setFirmwareFile] = useState<File | null>(null);
-  const [firmwareVersion, setFirmwareVersion] = useState("");
-  const [firmwareNotes, setFirmwareNotes] = useState("");
-  const [firmwareSetActive, setFirmwareSetActive] = useState(true);
-  const [firmwareUploading, setFirmwareUploading] = useState(false);
-  const [firmwareMsg, setFirmwareMsg] = useState("");
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -170,7 +142,6 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
         if (res.ok) {
           const data = await res.json();
           setEsp32Status(data);
-          if (canManageFirmware) fetchFirmwareData(data.firmware_version);
         }
       } catch (e) { console.error(e); }
       finally { setStatusLoading(false); }
@@ -179,51 +150,6 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
     const interval = setInterval(fetchStatus, 10000);
     return () => clearInterval(interval);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchFirmwareData = async (deviceVersion?: string | null) => {
-    try {
-      const [, checkRes] = await Promise.all([
-        fetch("/api/frankie/firmware"),
-        fetch(`/api/frankie/firmware?version=${deviceVersion ?? ""}`),
-      ]);
-      const { data } = await supabase
-        .from("frankie_firmware_releases")
-        .select("id, version, notes, is_active, created_at")
-        .order("created_at", { ascending: false });
-      if (data) setFirmwareReleases(data);
-      if (checkRes.ok) setFirmwareCheck(await checkRes.json());
-    } catch (e) { console.error(e); }
-  };
-
-  const uploadFirmware = async () => {
-    if (!firmwareFile || !firmwareVersion) return;
-    setFirmwareUploading(true);
-    setFirmwareMsg("Uploading...");
-    const form = new FormData();
-    form.append("file", firmwareFile);
-    form.append("version", firmwareVersion);
-    form.append("notes", firmwareNotes);
-    form.append("set_active", String(firmwareSetActive));
-    try {
-      const res = await fetch("/api/frankie/firmware", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setFirmwareMsg(`v${data.version} uploaded`);
-      setFirmwareFile(null); setFirmwareVersion(""); setFirmwareNotes("");
-      fetchFirmwareData(esp32Status?.firmware_version);
-    } catch (e: any) { setFirmwareMsg(`Error: ${e.message}`); }
-    finally { setFirmwareUploading(false); }
-  };
-
-  const activateRelease = async (id: number) => {
-    const res = await fetch("/api/frankie/firmware", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    if (res.ok) { setFirmwareMsg("Release activated"); fetchFirmwareData(esp32Status?.firmware_version); }
-  };
-
-  const pushOTAUpdate = () => sendCommand("ota_update");
 
   const sendMouseMove = useCallback((x: number, y: number) => {
     if (!canControl) return;
@@ -412,9 +338,7 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
                 {esp32Status.ip_address && <p>IP: {esp32Status.ip_address}</p>}
                 {esp32Status.last_seen && <p>Last seen: {new Date(esp32Status.last_seen).toLocaleTimeString()}</p>}
                 {esp32Status.firmware_version && (
-                  <p>Firmware: v{esp32Status.firmware_version}
-                    {firmwareCheck?.update_available && <span className="ml-1 text-yellow-300">(v{firmwareCheck.version} available)</span>}
-                  </p>
+                  <p>Firmware: v{esp32Status.firmware_version}</p>
                 )}
               </div>
             )}
@@ -426,106 +350,7 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
           </div>
         </div>
 
-        {/* Firmware Management - Admin Only, collapsible */}
-        {canManageFirmware && (
-          <div className="bg-white rounded-lg shadow-lg mb-8 border-t-4 border-yellow-500 overflow-hidden">
-            <button
-              onClick={() => setFirmwareOpen((v) => !v)}
-              className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-yellow-50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-lg font-semibold text-gray-800">⚙️ Firmware Management</span>
-                {firmwareCheck?.update_available && (
-                  <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-semibold">Update available</span>
-                )}
-              </div>
-              <span className="text-gray-400 text-xl">{firmwareOpen ? "▲" : "▼"}</span>
-            </button>
 
-            {firmwareOpen && (
-              <div className="px-6 pb-6">
-                {firmwareCheck?.update_available && (
-                  <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded mb-6 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-yellow-800">v{firmwareCheck.version} available</p>
-                      {firmwareCheck.notes && <p className="text-sm text-yellow-700">{firmwareCheck.notes}</p>}
-                      <p className="text-xs text-yellow-600 mt-1">Running v{esp32Status?.firmware_version ?? "unknown"}</p>
-                    </div>
-                    <button onClick={pushOTAUpdate} disabled={loading || esp32Status?.status !== "online"} className="ml-4 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed">
-                      Push Update
-                    </button>
-                  </div>
-                )}
-
-                <div className="mb-6">
-                  <h3 className="font-semibold text-gray-700 mb-3">Upload New Firmware</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm text-gray-600 mb-1">Version</label>
-                      <input type="text" placeholder="1.0.1" value={firmwareVersion} onChange={(e) => setFirmwareVersion(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-400" />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-600 mb-1">Firmware File (.bin)</label>
-                      <input type="file" accept=".bin" onChange={(e) => setFirmwareFile(e.target.files?.[0] ?? null)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
-                    </div>
-                  </div>
-                  <div className="mb-4">
-                    <label className="block text-sm text-gray-600 mb-1">Release Notes (optional)</label>
-                    <input type="text" placeholder="What changed?" value={firmwareNotes} onChange={(e) => setFirmwareNotes(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-400" />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                      <input type="checkbox" checked={firmwareSetActive} onChange={(e) => setFirmwareSetActive(e.target.checked)} className="w-4 h-4" />
-                      Set as active
-                    </label>
-                    <button onClick={uploadFirmware} disabled={firmwareUploading || !firmwareFile || !firmwareVersion} className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed">
-                      {firmwareUploading ? "Uploading..." : "Upload"}
-                    </button>
-                  </div>
-                  {firmwareMsg && <p className="mt-2 text-sm text-gray-600">{firmwareMsg}</p>}
-                </div>
-
-                {firmwareReleases.length > 0 && (
-                  <div>
-                    <h3 className="font-semibold text-gray-700 mb-3">Release History</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b text-left text-gray-500">
-                            <th className="pb-2 pr-4">Version</th>
-                            <th className="pb-2 pr-4">Notes</th>
-                            <th className="pb-2 pr-4">Uploaded</th>
-                            <th className="pb-2 pr-4">Status</th>
-                            <th className="pb-2"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {firmwareReleases.map((r) => (
-                            <tr key={r.id} className="border-b last:border-0">
-                              <td className="py-2 pr-4 font-mono font-semibold">v{r.version}</td>
-                              <td className="py-2 pr-4 text-gray-500">{r.notes ?? "—"}</td>
-                              <td className="py-2 pr-4 text-gray-500">{new Date(r.created_at).toLocaleDateString()}</td>
-                              <td className="py-2 pr-4">
-                                {r.is_active
-                                  ? <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-semibold">Active</span>
-                                  : <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">Inactive</span>}
-                              </td>
-                              <td className="py-2">
-                                {!r.is_active && (
-                                  <button onClick={() => activateRelease(r.id)} className="text-xs px-2 py-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded">Activate</button>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
