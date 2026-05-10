@@ -27,8 +27,7 @@ export default async function FrankiePage() {
       <div className="max-w-2xl mx-auto">
 
         <div className="text-center mb-10">
-          <a href="/dashboard" className="text-sm text-green-700 hover:text-green-900 block mb-4">← Back to Dashboard</a>
-          <h1 className="text-4xl font-bold text-green-800 mb-1">🚜 Frankie</h1>
+<h1 className="text-4xl font-bold text-green-800 mb-1">🚜 Frankie</h1>
           <p className="text-green-700">Autonomous Tractor</p>
         </div>
 
