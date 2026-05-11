@@ -169,7 +169,7 @@ export default function PlanterCard() {
             {planter.sentinel_en && (
               <>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Application Rates</p>
-                <div className="grid grid-cols-2 gap-3 mb-5">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
                   <StatusCard
                     label="TARGET RATE"
                     value={planter.sentinel_target_gal != null ? `${planter.sentinel_target_gal.toFixed(2)} gal/ac` : "--"}
@@ -178,6 +178,10 @@ export default function PlanterCard() {
                     label="AVG ACTUAL"
                     value={planter.sentinel_avg_gal != null ? `${planter.sentinel_avg_gal.toFixed(2)} gal/ac` : "--"}
                   />
+                  <StatusCard
+                    label="SENTINEL THRESH HOLD %"
+                    value={planter.live_thresh != null ? `${planter.live_thresh}%` : "--"}
+                  />
                 </div>
               </>
             )}
@@ -185,7 +189,6 @@ export default function PlanterCard() {
             {/* Footer */}
             <div className="flex justify-between items-center text-xs text-gray-400 pt-3 border-t border-gray-100">
               <span>{planter.wifi_ssid ?? ""}</span>
-              <span>thresh {planter.live_thresh ?? "--"}%</span>
               {planter.last_seen && (
                 <span>updated {new Date(planter.last_seen).toLocaleTimeString()}</span>
               )}
