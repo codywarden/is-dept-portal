@@ -182,7 +182,6 @@ export default function FrankieClient({ role, profile, canManageFirmware = false
 
         {/* Header */}
         <div className="text-center mb-8">
-          <a href="/dashboard/frankie" className="text-sm text-green-700 hover:text-green-900 block mb-4">← Back to Frankie</a>
           <h1 className="text-4xl font-bold text-green-800 mb-1">🎮 Remote</h1>
           <p className="text-green-700">Frankie Remote Control</p>
           <p className="text-sm text-green-600 mt-1">

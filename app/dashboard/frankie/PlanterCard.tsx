@@ -89,112 +89,108 @@ export default function PlanterCard() {
           {planter?.firmware_version && (
             <span className="text-xs text-gray-400">v{planter.firmware_version}</span>
           )}
-          <span className="text-xs text-gray-300">
-            {realtimeStatus === "connected" ? "⚡ live" : realtimeStatus === "connecting" ? "⏳" : "○ polling"}
-          </span>
         </div>
       </div>
 
       <div className="px-6 py-4">
 
-        {/* Offline state */}
-        {!online && !loading && (
-          <p className="text-sm text-gray-400 text-center py-6">
-            {planter?.last_seen
-              ? `Last seen ${Math.round((planter.seconds_since_last_seen ?? 0) / 60)} min ago`
-              : "Never connected"}
-          </p>
+        {/* Triggered alert */}
+        {online && planter?.output_on && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded mb-5">
+            <p className="text-red-700 font-semibold text-sm">
+              🚨 TRACTOR STOP TRIGGERED
+              {planter.output_reason ? ` — ${planter.output_reason}` : ""}
+            </p>
+          </div>
         )}
 
-        {online && planter && (
-          <>
-            {/* Triggered alert */}
-            {planter.output_on && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded mb-5">
-                <p className="text-red-700 font-semibold text-sm">
-                  🚨 TRACTOR STOP TRIGGERED
-                  {planter.output_reason ? ` — ${planter.output_reason}` : ""}
-                </p>
-              </div>
-            )}
+        {/* Section: Field Metrics */}
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Field</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+          <StatusCard
+            label="SPEED"
+            value={online && planter?.speed_mph != null ? `${planter.speed_mph.toFixed(1)} MPH` : "—"}
+            dim={!online}
+          />
+          <StatusCard
+            label="HEIGHT"
+            value={online && planter ? (planter.height ?? "—") : "—"}
+            highlight={online && planter?.height === "DOWN"}
+            dim={!online}
+          />
+          <StatusCard
+            label="ARMED"
+            value={!online ? "—" : planter?.output_on ? "TRIGGERED" : planter?.armed ? "ARMED" : "NOT ARMED"}
+            alarm={online && !!planter?.output_on}
+            ok={online && !!planter?.armed && !planter?.output_on}
+            warn={online && !planter?.armed && !planter?.output_on}
+            dim={!online}
+          />
+        </div>
 
-            {/* Section: Field Metrics */}
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Field</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
-              <StatusCard label="SPEED" value={`${(planter.speed_mph ?? 0).toFixed(1)} MPH`} />
-              <StatusCard
-                label="HEIGHT"
-                value={planter.height ?? "--"}
-                highlight={planter.height === "DOWN"}
-              />
-              <StatusCard
-                label="ARMED"
-                value={planter.output_on ? "TRIGGERED" : planter.armed ? "ARMED" : "NOT ARMED"}
-                alarm={!!planter.output_on}
-                ok={!!planter.armed && !planter.output_on}
-                warn={!planter.armed && !planter.output_on}
-              />
-            </div>
+        {/* Section: Sensors */}
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Sensors</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+          <StatusCard
+            label="SENTINEL"
+            value={!online ? "—" : !planter?.sentinel_en ? "OFF" : !planter?.armed ? "NOT ARMED" : planter?.sentinel_alarm ? "ALARM" : "OK"}
+            alarm={online && !!planter?.sentinel_alarm}
+            ok={online && planter?.sentinel_en === true && !!planter?.armed && !planter?.sentinel_alarm}
+            warn={online && planter?.sentinel_en === true && !planter?.armed}
+            dim={!online || !planter?.sentinel_en}
+          />
+          <StatusCard
+            label="SEEDING"
+            value={!online ? "—" : !planter?.seed_en ? "OFF" : !planter?.armed ? "NOT ARMED" : planter?.seed_fault ? `ROW ${planter.seed_fault_row}` : "OK"}
+            alarm={online && !!planter?.seed_fault}
+            ok={online && planter?.seed_en === true && !!planter?.armed && !planter?.seed_fault}
+            warn={online && planter?.seed_en === true && !planter?.armed}
+            dim={!online || !planter?.seed_en}
+          />
+          <StatusCard
+            label="VACUUM"
+            value={!online ? "—" : !planter?.vac_en ? "OFF" : !planter?.armed ? "NOT ARMED" : planter?.vac_fault ? "FAULT" : "OK"}
+            alarm={online && !!planter?.vac_fault}
+            ok={online && planter?.vac_en === true && !!planter?.armed && !planter?.vac_fault}
+            warn={online && planter?.vac_en === true && !planter?.armed}
+            dim={!online || !planter?.vac_en}
+          />
+        </div>
 
-            {/* Section: Sensors */}
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Sensors</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
-              <StatusCard
-                label="SENTINEL"
-                value={!planter.sentinel_en ? "OFF" : !planter.armed ? "NOT ARMED" : planter.sentinel_alarm ? "ALARM" : "OK"}
-                alarm={!!planter.sentinel_alarm}
-                ok={planter.sentinel_en === true && !!planter.armed && !planter.sentinel_alarm}
-                warn={planter.sentinel_en === true && !planter.armed}
-                dim={!planter.sentinel_en}
-              />
-              <StatusCard
-                label="SEEDING"
-                value={!planter.seed_en ? "OFF" : !planter.armed ? "NOT ARMED" : planter.seed_fault ? `ROW ${planter.seed_fault_row}` : "OK"}
-                alarm={!!planter.seed_fault}
-                ok={planter.seed_en === true && !!planter.armed && !planter.seed_fault}
-                warn={planter.seed_en === true && !planter.armed}
-                dim={!planter.seed_en}
-              />
-              <StatusCard
-                label="VACUUM"
-                value={!planter.vac_en ? "OFF" : !planter.armed ? "NOT ARMED" : planter.vac_fault ? "FAULT" : "OK"}
-                alarm={!!planter.vac_fault}
-                ok={planter.vac_en === true && !!planter.armed && !planter.vac_fault}
-                warn={planter.vac_en === true && !planter.armed}
-                dim={!planter.vac_en}
-              />
-            </div>
+        {/* Section: Application Rates */}
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Application Rates</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+          <StatusCard
+            label="TARGET RATE"
+            value={online && planter?.sentinel_target_gal != null ? `${planter.sentinel_target_gal.toFixed(2)} gal/ac` : "—"}
+            dim={!online || !planter?.sentinel_en}
+          />
+          <StatusCard
+            label="AVG ACTUAL"
+            value={online && planter?.sentinel_avg_gal != null ? `${planter.sentinel_avg_gal.toFixed(2)} gal/ac` : "—"}
+            dim={!online || !planter?.sentinel_en}
+          />
+          <StatusCard
+            label="SENTINEL THRESH HOLD %"
+            value={online && planter?.live_thresh != null ? `${planter.live_thresh}%` : "—"}
+            dim={!online || !planter?.sentinel_en}
+          />
+        </div>
 
-            {/* Section: Application Rates (sentinel only) */}
-            {planter.sentinel_en && (
-              <>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Application Rates</p>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
-                  <StatusCard
-                    label="TARGET RATE"
-                    value={planter.sentinel_target_gal != null ? `${planter.sentinel_target_gal.toFixed(2)} gal/ac` : "--"}
-                  />
-                  <StatusCard
-                    label="AVG ACTUAL"
-                    value={planter.sentinel_avg_gal != null ? `${planter.sentinel_avg_gal.toFixed(2)} gal/ac` : "--"}
-                  />
-                  <StatusCard
-                    label="SENTINEL THRESH HOLD %"
-                    value={planter.live_thresh != null ? `${planter.live_thresh}%` : "--"}
-                  />
-                </div>
-              </>
-            )}
-
-            {/* Footer */}
-            <div className="flex justify-between items-center text-xs text-gray-400 pt-3 border-t border-gray-100">
-              <span>{planter.wifi_ssid ?? ""}</span>
-              {planter.last_seen && (
-                <span>updated {new Date(planter.last_seen).toLocaleTimeString()}</span>
-              )}
-            </div>
-          </>
-        )}
+        {/* Footer */}
+        <div className="flex justify-between items-center text-xs text-gray-400 pt-3 border-t border-gray-100">
+          <div className="flex items-center gap-1.5">
+            {online
+              ? <span className="text-green-500">● Connected</span>
+              : <span className="text-red-400">● Not Connected</span>}
+            {planter?.wifi_ssid && <span>· {planter.wifi_ssid}</span>}
+          </div>
+          {planter?.last_seen ? (
+            <span>updated {new Date(planter.last_seen).toLocaleTimeString()}</span>
+          ) : (
+            <span>never connected</span>
+          )}
+        </div>
       </div>
     </div>
   );
