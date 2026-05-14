@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import FirmwareCard from "./FirmwareCard";
 import { createBrowserClient } from "@supabase/ssr";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -13,6 +14,7 @@ interface FrankieClientProps {
     locations: string[];
     pagePermissions: Record<string, boolean> | null;
   };
+  canManageFirmware?: boolean;
 }
 
 interface ESP32Status {
@@ -38,7 +40,7 @@ const SHIFT_MAP: Record<string, string> = {
   ",":"<",".":">",
 };
 
-export default function FrankieClient({ role, profile }: FrankieClientProps) {
+export default function FrankieClient({ role, profile, canManageFirmware = false }: FrankieClientProps) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>("");
   const [lastCommand, setLastCommand] = useState<string>("");
@@ -350,6 +352,7 @@ export default function FrankieClient({ role, profile }: FrankieClientProps) {
           </div>
         </div>
 
+        <FirmwareCard canManageFirmware={canManageFirmware} />
 
       </div>
     </div>

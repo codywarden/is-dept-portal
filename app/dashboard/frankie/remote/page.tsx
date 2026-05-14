@@ -23,9 +23,12 @@ export default async function FrankieRemotePage() {
     redirect("/dashboard");
   }
 
+  const canManageFirmware = role === "admin" || !!pagePermissions["frankie_firmware"];
+
   return (
     <FrankieClient
       role={role}
+      canManageFirmware={canManageFirmware}
       profile={{
         email: profile?.email ?? user.email ?? "",
         firstName: profile?.first_name ?? "",

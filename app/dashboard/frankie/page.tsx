@@ -3,7 +3,6 @@ export const revalidate = 0;
 
 import { redirect } from "next/navigation";
 import { requireUser } from "../../lib/auth/requireRole";
-import FirmwareCard from "./FirmwareCard";
 
 type Role = "admin" | "manager" | "user" | "guest";
 
@@ -28,7 +27,6 @@ export default async function FrankiePage() {
 
   if (!hasAccess) redirect("/dashboard");
 
-  const canManageFirmware = role === "admin" || !!pagePermissions["frankie_firmware"];
   const canPlanter = role === "admin" || !!pagePermissions["frankie"] || !!pagePermissions["frankie/planter"];
   const canRemote  = role === "admin" || !!pagePermissions["frankie"] || !!pagePermissions["frankie/remote"];
 
@@ -68,8 +66,6 @@ export default async function FrankiePage() {
             </a>
           )}
         </div>
-
-        <FirmwareCard canManageFirmware={canManageFirmware} />
 
       </div>
     </div>
