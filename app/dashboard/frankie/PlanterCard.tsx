@@ -14,6 +14,7 @@ interface PlanterStatus {
   speed_mph: number | null;
   armed: boolean | null;
   height: string | null;
+  height_en: boolean | null;
   output_on: boolean | null;
   output_reason: string | null;
   seed_fault: boolean | null;
@@ -39,10 +40,11 @@ function deriveStatus(row: any): PlanterStatus {
   };
 }
 
-export default function PlanterCard() {
+export default function PlanterCard({ canControl = false }: { canControl?: boolean }) {
   const [planter, setPlanter] = useState<PlanterStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
+  const [pendingToggles, setPendingToggles] = useState<Record<string, boolean>>({});
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   const supabase = createBrowserClient(
@@ -72,6 +74,19 @@ export default function PlanterCard() {
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); channelRef.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sendToggle = async (command: string, value: boolean) => {
+    setPendingToggles(prev => ({ ...prev, [command]: true }));
+    try {
+      await fetch("/api/frankie/planter/commands", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command, value }),
+      });
+    } finally {
+      setPendingToggles(prev => { const n = { ...prev }; delete n[command]; return n; });
+    }
+  };
 
   const online   = planter?.status === "online";
   const anyFault = planter?.output_on || planter?.seed_fault || planter?.vac_fault || planter?.sentinel_alarm;
@@ -176,6 +191,42 @@ export default function PlanterCard() {
             dim={!online || !planter?.sentinel_en}
           />
         </div>
+
+        {/* Section: Controls */}
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Controls</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          {[
+            { label: "HEIGHT", command: "set_height_en", value: planter?.height_en },
+            { label: "SENTINEL", command: "set_sentinel_en", value: planter?.sentinel_en },
+            { label: "SEEDING", command: "set_seed_en", value: planter?.seed_en },
+            { label: "VACUUM", command: "set_vac_en", value: planter?.vac_en },
+          ].map(({ label, command, value }) => {
+            const pending = !!pendingToggles[command];
+            const disabled = !online || !canControl || pending;
+            const isOn = value === true;
+            return (
+              <div key={command} className="border rounded-lg p-3 border-gray-200 bg-gray-50">
+                <div className="text-xs text-gray-400 mb-2">{label}</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => !disabled && sendToggle(command, !value)}
+                    disabled={disabled}
+                    aria-label={`Toggle ${label}`}
+                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${isOn ? "bg-green-500" : "bg-gray-300"}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isOn ? "translate-x-5" : "translate-x-0"}`} />
+                  </button>
+                  <span className={`text-xs font-semibold ${!online ? "text-gray-400" : isOn ? "text-green-700" : "text-gray-400"}`}>
+                    {pending ? "..." : !online ? "—" : value == null ? "—" : isOn ? "ON" : "OFF"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {!canControl && online && (
+          <p className="text-xs text-gray-400 mb-4">View only — no control permission</p>
+        )}
 
         {/* Footer */}
         <div className="flex justify-between items-center text-xs text-gray-400 pt-3 border-t border-gray-100">

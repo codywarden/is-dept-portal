@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { redirect } from "next/navigation";
 import { requireUser } from "../../../lib/auth/requireRole";
 import PlanterCard from "../PlanterCard";
+import PlanterFirmwareCard from "../PlanterFirmwareCard";
 
 type Role = "admin" | "manager" | "user" | "guest";
 
@@ -23,10 +24,14 @@ export default async function PlanterPage() {
     redirect("/dashboard");
   }
 
+  const canControl        = role === "admin" || !!pagePermissions["frankie"] || !!pagePermissions["frankie/planter"];
+  const canManageFirmware = role === "admin" || !!pagePermissions["frankie_firmware"] || !!pagePermissions["frankie/planter"];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
-        <PlanterCard />
+        <PlanterCard canControl={canControl} />
+        <PlanterFirmwareCard canManage={canManageFirmware} />
       </div>
     </div>
   );
