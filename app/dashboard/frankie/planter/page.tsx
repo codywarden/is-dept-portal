@@ -20,12 +20,12 @@ export default async function PlanterPage() {
   const role = ((profile?.role ?? "user") as Role);
   const pagePermissions = (profile?.page_permissions as Record<string, boolean> | null) ?? {};
 
-  if (role !== "admin" && !pagePermissions["frankie"] && !pagePermissions["frankie/planter"] && !pagePermissions["frankie_firmware"]) {
+  if (role !== "admin" && !pagePermissions["frankie"] && !pagePermissions["frankie/planter"] && !pagePermissions["frankie_planter_firmware"]) {
     redirect("/dashboard");
   }
 
   const canControl        = role === "admin" || !!pagePermissions["frankie"] || !!pagePermissions["frankie/planter"];
-  const canManageFirmware = role === "admin" || !!pagePermissions["frankie_firmware"] || !!pagePermissions["frankie/planter"];
+  const canManageFirmware = role === "admin" || !!pagePermissions["frankie_planter_firmware"];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 p-4 md:p-8">

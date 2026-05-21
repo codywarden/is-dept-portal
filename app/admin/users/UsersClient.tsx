@@ -49,7 +49,13 @@ const PAGE_GROUPS: {
     key: "frankie",
     label: "Frankie (Tractor Control)",
     subpages: [
-      { key: "frankie/planter", label: "Planter Status" },
+      {
+        key: "frankie/planter",
+        label: "Planter Status",
+        children: [
+          { key: "frankie_planter_firmware", label: "Planter Firmware Upload" },
+        ],
+      },
       {
         key: "frankie/remote",
         label: "Remote Control",

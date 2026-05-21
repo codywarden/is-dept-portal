@@ -4,6 +4,34 @@ import { useState, useEffect, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
+interface FaultEntry {
+  id: number;
+  occurred_at: string;
+  output_on: boolean | null;
+  output_reason: string | null;
+  seed_fault: boolean | null;
+  seed_fault_row: number | null;
+  vac_fault: boolean | null;
+  sentinel_alarm: boolean | null;
+}
+
+function describeFault(entry: FaultEntry): string {
+  const parts: string[] = [];
+  if (entry.output_on) parts.push(entry.output_reason ? `Stop: ${entry.output_reason}` : "Tractor Stop");
+  if (entry.seed_fault) parts.push(`Seeding Row ${entry.seed_fault_row ?? "?"}`);
+  if (entry.vac_fault) parts.push("Vacuum");
+  if (entry.sentinel_alarm) parts.push("Sentinel");
+  return parts.join(" · ") || "Unknown";
+}
+
+function timeAgo(iso: string): string {
+  const diff = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 interface PlanterStatus {
   status: "online" | "offline";
   last_seen: string | null;
@@ -45,6 +73,7 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
   const [loading, setLoading] = useState(true);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [pendingToggles, setPendingToggles] = useState<Record<string, boolean>>({});
+  const [faultLog, setFaultLog] = useState<FaultEntry[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   const supabase = createBrowserClient(
@@ -59,12 +88,24 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
       .catch(console.error)
       .finally(() => setLoading(false));
 
+    fetch("/api/frankie/planter/faults")
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setFaultLog(d))
+      .catch(console.error);
+
     const ch = supabase
       .channel("planter_realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "planter_status" },
         (payload) => { if (payload.new) setPlanter(deriveStatus(payload.new)); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "planter_fault_log" },
+        (payload) => {
+          if (payload.new) setFaultLog(prev => [payload.new as FaultEntry, ...prev].slice(0, 10));
+        }
       )
       .subscribe((s) => {
         if (s === "SUBSCRIBED")   setRealtimeStatus("connected");
@@ -192,6 +233,26 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
           />
         </div>
 
+        {/* Section: Fault Log */}
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Fault Log</p>
+        <div className="mb-5">
+          {faultLog.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">No faults recorded.</p>
+          ) : (
+            <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+              {faultLog.map((entry) => (
+                <div key={entry.id} className="flex items-start gap-3 px-3 py-2 bg-white hover:bg-gray-50">
+                  <span className="text-xs text-red-400 mt-0.5 flex-shrink-0">⚠</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-gray-800 truncate">{describeFault(entry)}</p>
+                    <p className="text-xs text-gray-400">{new Date(entry.occurred_at).toLocaleString()} · {timeAgo(entry.occurred_at)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Section: Controls */}
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Controls</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
@@ -212,9 +273,9 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
                     onClick={() => !disabled && sendToggle(command, !value)}
                     disabled={disabled}
                     aria-label={`Toggle ${label}`}
-                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${isOn ? "bg-green-500" : "bg-gray-300"}`}
+                    className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 bg-gray-900 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
                   >
-                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isOn ? "translate-x-5" : "translate-x-0"}`} />
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full shadow transition-all duration-200 ${isOn ? "translate-x-6 bg-green-400" : "translate-x-0 bg-gray-500"}`} />
                   </button>
                   <span className={`text-xs font-semibold ${!online ? "text-gray-400" : isOn ? "text-green-700" : "text-gray-400"}`}>
                     {pending ? "..." : !online ? "—" : value == null ? "—" : isOn ? "ON" : "OFF"}

@@ -50,6 +50,31 @@ export async function POST(req: NextRequest) {
       live_thresh, sentinel_en, seed_en, vac_en,
     } = body;
 
+    // Check previous fault state to detect newly triggered faults
+    const { data: prev } = await supabase
+      .from("planter_status")
+      .select("output_on, seed_fault, vac_fault, sentinel_alarm")
+      .eq("id", "default")
+      .single();
+
+    const newFault =
+      (output_on    && !prev?.output_on)    ||
+      (seed_fault   && !prev?.seed_fault)   ||
+      (vac_fault    && !prev?.vac_fault)    ||
+      (sentinel_alarm && !prev?.sentinel_alarm);
+
+    if (newFault) {
+      await supabase.from("planter_fault_log").insert({
+        occurred_at:    new Date().toISOString(),
+        output_on:      output_on      ?? false,
+        output_reason:  output_reason  ?? null,
+        seed_fault:     seed_fault     ?? false,
+        seed_fault_row: seed_fault_row ?? null,
+        vac_fault:      vac_fault      ?? false,
+        sentinel_alarm: sentinel_alarm ?? false,
+      });
+    }
+
     const { error } = await supabase
       .from("planter_status")
       .upsert({

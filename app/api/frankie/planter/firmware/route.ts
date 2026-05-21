@@ -13,7 +13,7 @@ async function canManage() {
     const { data: profile } = await supabase
       .from("profiles").select("role, page_permissions").eq("id", user.id).single();
     const perms = (profile?.page_permissions ?? {}) as Record<string, boolean>;
-    return profile?.role === "admin" || perms["frankie_firmware"] === true || perms["frankie/planter"] === true;
+    return profile?.role === "admin" || perms["frankie_planter_firmware"] === true;
   } catch { return false; }
 }
 
