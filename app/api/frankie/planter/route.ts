@@ -93,7 +93,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to update status" }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    // Deliver next pending command in the telemetry response so the ESP32
+    // doesn't need a separate polling loop
+    const { data: command } = await supabase
+      .from("planter_commands")
+      .select("id, command, value")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .single();
+
+    return NextResponse.json({ success: true, command: command ?? null });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
