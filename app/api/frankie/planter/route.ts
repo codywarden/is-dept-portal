@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     // doesn't need a separate polling loop
     const { data: command } = await supabase
       .from("planter_commands")
-      .select("id, command, value")
+      .select("id, command, value, num_value")
       .eq("status", "pending")
       .order("created_at", { ascending: true })
       .limit(1)

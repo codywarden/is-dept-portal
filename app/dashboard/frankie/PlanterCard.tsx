@@ -68,12 +68,25 @@ function deriveStatus(row: any): PlanterStatus {
   };
 }
 
+const CONFIG_FIELDS = [
+  { label: "Min Speed",          command: "set_min_speed",       unit: "MPH", min: 0.5,  max: 15,     step: 0.1, desc: "Speed below which faults are suppressed" },
+  { label: "Seed Fault Delay",   command: "set_seed_delay",      unit: "sec", min: 1,    max: 120,    step: 1,   desc: "Delay before seed fault triggers stop output" },
+  { label: "Vacuum Fault Delay", command: "set_vac_delay",       unit: "sec", min: 1,    max: 120,    step: 1,   desc: "Delay before vacuum fault triggers stop output" },
+  { label: "Sentinel Delay",     command: "set_sent_delay",      unit: "sec", min: 1,    max: 120,    step: 1,   desc: "Delay before Sentinel alarm triggers stop output" },
+  { label: "Output Hold",        command: "set_output_hold",     unit: "sec", min: 0,    max: 3600,   step: 1,   desc: "Hold time after fault clears (0 = latch until reset)" },
+  { label: "Fallback Threshold", command: "set_fallback_thresh", unit: "%",   min: 1,    max: 99,     step: 1,   desc: "% threshold used if not received on CAN bus" },
+  { label: "Sentinel Scale",     command: "set_sentinel_scale",  unit: "",    min: 1000, max: 999999, step: 1,   desc: "Raw CAN units per gal/ac" },
+] as const;
+
 export default function PlanterCard({ canControl = false }: { canControl?: boolean }) {
   const [planter, setPlanter] = useState<PlanterStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [pendingToggles, setPendingToggles] = useState<Record<string, boolean>>({});
   const [faultLog, setFaultLog] = useState<FaultEntry[]>([]);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [configVals, setConfigVals] = useState<Record<string, string>>({});
+  const [configMsg, setConfigMsg] = useState<Record<string, { text: string; ok: boolean } | null>>({});
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   const supabase = createBrowserClient(
@@ -126,6 +139,23 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
       });
     } finally {
       setPendingToggles(prev => { const n = { ...prev }; delete n[command]; return n; });
+    }
+  };
+
+  const sendConfig = async (command: string, num_value: number) => {
+    setConfigMsg(prev => ({ ...prev, [command]: null }));
+    try {
+      const res = await fetch("/api/frankie/planter/commands", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command, num_value }),
+      });
+      const ok = res.ok;
+      setConfigMsg(prev => ({ ...prev, [command]: { text: ok ? "Queued" : "Error", ok } }));
+      setTimeout(() => setConfigMsg(prev => ({ ...prev, [command]: null })), 3000);
+    } catch {
+      setConfigMsg(prev => ({ ...prev, [command]: { text: "Network error", ok: false } }));
+      setTimeout(() => setConfigMsg(prev => ({ ...prev, [command]: null })), 3000);
     }
   };
 
@@ -287,6 +317,63 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
         </div>
         {!canControl && online && (
           <p className="text-xs text-gray-400 mb-4">View only — no control permission</p>
+        )}
+
+        {/* Section: Config */}
+        {canControl && (
+          <>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Config</p>
+            <div className="border border-gray-200 rounded-lg overflow-hidden mb-5">
+              <button
+                onClick={() => setConfigOpen(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+              >
+                <span className="text-sm font-semibold text-gray-700">⚙️ Planter Settings</span>
+                <span className="text-gray-400 text-xs">{configOpen ? "▲ hide" : "▼ show"}</span>
+              </button>
+              {configOpen && (
+                <div className="divide-y divide-gray-100">
+                  {CONFIG_FIELDS.map(({ label, command, unit, min, max, step, desc }) => {
+                    const val = configVals[command] ?? "";
+                    const msg = configMsg[command];
+                    const numVal = parseFloat(val);
+                    const valid = val !== "" && !isNaN(numVal) && numVal >= min && numVal <= max;
+                    return (
+                      <div key={command} className="px-4 py-3 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold text-gray-700">{label}{unit ? ` (${unit})` : ""}</div>
+                          <div className="text-xs text-gray-400">{desc} · {min}–{max}</div>
+                        </div>
+                        <input
+                          type="number"
+                          min={min}
+                          max={max}
+                          step={step}
+                          value={val}
+                          placeholder="—"
+                          onChange={e => setConfigVals(prev => ({ ...prev, [command]: e.target.value }))}
+                          className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-right focus:outline-none focus:border-green-500"
+                          disabled={!online}
+                        />
+                        <button
+                          onClick={() => valid && sendConfig(command, numVal)}
+                          disabled={!valid || !online}
+                          className={`px-3 py-1 rounded text-xs font-semibold transition-all ${valid && online ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+                        >
+                          Set
+                        </button>
+                        {msg && (
+                          <span className={`text-xs font-semibold w-16 text-right ${msg.ok ? "text-green-600" : "text-red-500"}`}>
+                            {msg.text}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Footer */}

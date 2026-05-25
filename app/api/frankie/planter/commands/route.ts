@@ -3,11 +3,21 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createSupabaseAdmin } from "@/app/lib/supabase/admin";
 
-const VALID_COMMANDS = ["set_height_en", "set_sentinel_en", "set_seed_en", "set_vac_en", "ota_update"] as const;
+const VALID_COMMANDS = [
+  "set_height_en", "set_sentinel_en", "set_seed_en", "set_vac_en", "ota_update",
+  "set_min_speed", "set_seed_delay", "set_vac_delay", "set_sent_delay",
+  "set_output_hold", "set_fallback_thresh", "set_sentinel_scale",
+] as const;
 type PlanterCommand = typeof VALID_COMMANDS[number];
-const VALUE_OPTIONAL_COMMANDS: readonly string[] = ["ota_update"];
 
-// POST — dashboard sends a toggle command (authenticated)
+const VALUE_OPTIONAL_COMMANDS: readonly string[] = ["ota_update"];
+const BOOLEAN_COMMANDS: readonly string[] = ["set_height_en", "set_sentinel_en", "set_seed_en", "set_vac_en"];
+const NUMERIC_COMMANDS: readonly string[] = [
+  "set_min_speed", "set_seed_delay", "set_vac_delay", "set_sent_delay",
+  "set_output_hold", "set_fallback_thresh", "set_sentinel_scale",
+];
+
+// POST — dashboard sends a command (authenticated)
 export async function POST(req: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -41,19 +51,31 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { command, value } = body;
+    const { command, value, num_value } = body;
 
     if (!command || !VALID_COMMANDS.includes(command as PlanterCommand)) {
       return NextResponse.json({ error: "Invalid command" }, { status: 400 });
     }
-    if (!VALUE_OPTIONAL_COMMANDS.includes(command) && typeof value !== "boolean") {
+    if (BOOLEAN_COMMANDS.includes(command) && typeof value !== "boolean") {
       return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
+    }
+    if (NUMERIC_COMMANDS.includes(command) && typeof num_value !== "number") {
+      return NextResponse.json({ error: "num_value must be a number" }, { status: 400 });
+    }
+    if (!VALUE_OPTIONAL_COMMANDS.includes(command) && !BOOLEAN_COMMANDS.includes(command) && !NUMERIC_COMMANDS.includes(command)) {
+      return NextResponse.json({ error: "Invalid command type" }, { status: 400 });
     }
 
     const admin = createSupabaseAdmin();
     const { data, error } = await admin
       .from("planter_commands")
-      .insert({ command, value, status: "pending", sent_by: session.user.id })
+      .insert({
+        command,
+        value: BOOLEAN_COMMANDS.includes(command) ? value : null,
+        num_value: NUMERIC_COMMANDS.includes(command) ? num_value : null,
+        status: "pending",
+        sent_by: session.user.id,
+      })
       .select()
       .single();
 
