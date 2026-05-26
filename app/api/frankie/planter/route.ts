@@ -48,6 +48,8 @@ export async function POST(req: NextRequest) {
       seed_fault, seed_fault_row, vac_fault,
       sentinel_alarm, sentinel_target_gal, sentinel_avg_gal,
       live_thresh, sentinel_en, seed_en, vac_en,
+      cfg_min_speed, cfg_seed_delay, cfg_vac_delay, cfg_sent_delay,
+      cfg_output_hold, cfg_fallback_thresh, cfg_sentinel_scale,
     } = body;
 
     // Check previous fault state to detect newly triggered faults
@@ -86,6 +88,8 @@ export async function POST(req: NextRequest) {
         seed_fault, seed_fault_row, vac_fault,
         sentinel_alarm, sentinel_target_gal, sentinel_avg_gal,
         live_thresh, sentinel_en, seed_en, vac_en,
+        cfg_min_speed, cfg_seed_delay, cfg_vac_delay, cfg_sent_delay,
+        cfg_output_hold, cfg_fallback_thresh, cfg_sentinel_scale,
       }, { onConflict: "id" });
 
     if (error) {

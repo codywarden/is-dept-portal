@@ -55,6 +55,13 @@ interface PlanterStatus {
   sentinel_en: boolean | null;
   seed_en: boolean | null;
   vac_en: boolean | null;
+  cfg_min_speed: number | null;
+  cfg_seed_delay: number | null;
+  cfg_vac_delay: number | null;
+  cfg_sent_delay: number | null;
+  cfg_output_hold: number | null;
+  cfg_fallback_thresh: number | null;
+  cfg_sentinel_scale: number | null;
 }
 
 function deriveStatus(row: any): PlanterStatus {
@@ -78,6 +85,16 @@ const CONFIG_FIELDS = [
   { label: "Sentinel Scale",     command: "set_sentinel_scale",  unit: "",    min: 1000, max: 999999, step: 1,   desc: "Raw CAN units per gal/ac" },
 ] as const;
 
+const CMD_TO_STATUS_FIELD: Record<string, keyof PlanterStatus> = {
+  set_min_speed:       "cfg_min_speed",
+  set_seed_delay:      "cfg_seed_delay",
+  set_vac_delay:       "cfg_vac_delay",
+  set_sent_delay:      "cfg_sent_delay",
+  set_output_hold:     "cfg_output_hold",
+  set_fallback_thresh: "cfg_fallback_thresh",
+  set_sentinel_scale:  "cfg_sentinel_scale",
+};
+
 export default function PlanterCard({ canControl = false }: { canControl?: boolean }) {
   const [planter, setPlanter] = useState<PlanterStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,10 +111,27 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  const syncConfigFromStatus = (s: PlanterStatus) => {
+    setConfigVals(prev => {
+      const next = { ...prev };
+      for (const [cmd, field] of Object.entries(CMD_TO_STATUS_FIELD)) {
+        const reported = s[field];
+        if (reported != null && !(cmd in next)) {
+          next[cmd] = String(reported);
+        }
+      }
+      return next;
+    });
+  };
+
   useEffect(() => {
     fetch("/api/frankie/planter")
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setPlanter(d); })
+      .then(d => {
+        if (!d) return;
+        setPlanter(d);
+        syncConfigFromStatus(d);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
 
@@ -106,12 +140,32 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
       .then(d => setFaultLog(d))
       .catch(console.error);
 
+    // Fall back to last-sent command values for any fields the planter hasn't reported yet
+    fetch("/api/frankie/planter/config")
+      .then(r => r.ok ? r.json() : {})
+      .then((d: Record<string, number>) => {
+        setConfigVals(prev => {
+          const next = { ...prev };
+          for (const [cmd, val] of Object.entries(d)) {
+            if (!(cmd in next)) next[cmd] = String(val);
+          }
+          return next;
+        });
+      })
+      .catch(console.error);
+
     const ch = supabase
       .channel("planter_realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "planter_status" },
-        (payload) => { if (payload.new) setPlanter(deriveStatus(payload.new)); }
+        (payload) => {
+          if (payload.new) {
+            const s = deriveStatus(payload.new);
+            setPlanter(s);
+            syncConfigFromStatus(s);
+          }
+        }
       )
       .on(
         "postgres_changes",
@@ -269,16 +323,23 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
           {faultLog.length === 0 ? (
             <p className="text-xs text-gray-400 italic">No faults recorded.</p>
           ) : (
-            <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
-              {faultLog.map((entry) => (
-                <div key={entry.id} className="flex items-start gap-3 px-3 py-2 bg-white hover:bg-gray-50">
-                  <span className="text-xs text-red-400 mt-0.5 flex-shrink-0">⚠</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-gray-800 truncate">{describeFault(entry)}</p>
-                    <p className="text-xs text-gray-400">{new Date(entry.occurred_at).toLocaleString()} · {timeAgo(entry.occurred_at)}</p>
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="divide-y divide-gray-100 overflow-y-auto max-h-40">
+                {faultLog.map((entry) => (
+                  <div key={entry.id} className="flex items-start gap-3 px-3 py-2 bg-white hover:bg-gray-50">
+                    <span className="text-xs text-red-400 mt-0.5 flex-shrink-0">⚠</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-gray-800 truncate">{describeFault(entry)}</p>
+                      <p className="text-xs text-gray-400">{new Date(entry.occurred_at).toLocaleString()} · {timeAgo(entry.occurred_at)}</p>
+                    </div>
                   </div>
+                ))}
+              </div>
+              {faultLog.length > 3 && (
+                <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 text-center">{faultLog.length} faults — scroll to see all</p>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
@@ -315,66 +376,77 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
             );
           })}
         </div>
-        {!canControl && online && (
-          <p className="text-xs text-gray-400 mb-4">View only — no control permission</p>
-        )}
-
         {/* Section: Config */}
-        {canControl && (
-          <>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Config</p>
-            <div className="border border-gray-200 rounded-lg overflow-hidden mb-5">
-              <button
-                onClick={() => setConfigOpen(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-              >
-                <span className="text-sm font-semibold text-gray-700">⚙️ Planter Settings</span>
-                <span className="text-gray-400 text-xs">{configOpen ? "▲ hide" : "▼ show"}</span>
-              </button>
-              {configOpen && (
-                <div className="divide-y divide-gray-100">
-                  {CONFIG_FIELDS.map(({ label, command, unit, min, max, step, desc }) => {
-                    const val = configVals[command] ?? "";
-                    const msg = configMsg[command];
-                    const numVal = parseFloat(val);
-                    const valid = val !== "" && !isNaN(numVal) && numVal >= min && numVal <= max;
-                    return (
-                      <div key={command} className="px-4 py-3 flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-semibold text-gray-700">{label}{unit ? ` (${unit})` : ""}</div>
-                          <div className="text-xs text-gray-400">{desc} · {min}–{max}</div>
-                        </div>
-                        <input
-                          type="number"
-                          min={min}
-                          max={max}
-                          step={step}
-                          value={val}
-                          placeholder="—"
-                          onChange={e => setConfigVals(prev => ({ ...prev, [command]: e.target.value }))}
-                          className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-right focus:outline-none focus:border-green-500"
-                          disabled={!online}
-                        />
-                        <button
-                          onClick={() => valid && sendConfig(command, numVal)}
-                          disabled={!valid || !online}
-                          className={`px-3 py-1 rounded text-xs font-semibold transition-all ${valid && online ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
-                        >
-                          Set
-                        </button>
-                        {msg && (
-                          <span className={`text-xs font-semibold w-16 text-right ${msg.ok ? "text-green-600" : "text-red-500"}`}>
-                            {msg.text}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Config</p>
+        <div className="border border-gray-200 rounded-lg overflow-hidden mb-5">
+          <button
+            onClick={() => setConfigOpen(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-700">⚙️ Planter Settings</span>
+              {!canControl && (
+                <span className="text-xs text-gray-400 bg-gray-200 rounded px-1.5 py-0.5">view only</span>
               )}
             </div>
-          </>
-        )}
+            <span className="text-gray-400 text-xs">{configOpen ? "▲ hide" : "▼ show"}</span>
+          </button>
+          {configOpen && (
+            <div className="divide-y divide-gray-100">
+              {CONFIG_FIELDS.map(({ label, command, unit, min, max, step, desc }) => {
+                if (canControl) {
+                  const val = configVals[command] ?? "";
+                  const msg = configMsg[command];
+                  const numVal = parseFloat(val);
+                  const valid = val !== "" && !isNaN(numVal) && numVal >= min && numVal <= max;
+                  return (
+                    <div key={command} className="px-4 py-3 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-gray-700">{label}{unit ? ` (${unit})` : ""}</div>
+                        <div className="text-xs text-gray-400">{desc} · {min}–{max}</div>
+                      </div>
+                      <input
+                        type="number"
+                        min={min}
+                        max={max}
+                        step={step}
+                        value={val}
+                        placeholder="—"
+                        onChange={e => setConfigVals(prev => ({ ...prev, [command]: e.target.value }))}
+                        className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-right focus:outline-none focus:border-green-500"
+                        disabled={!online}
+                      />
+                      <button
+                        onClick={() => valid && sendConfig(command, numVal)}
+                        disabled={!valid || !online}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-all ${valid && online ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+                      >
+                        Set
+                      </button>
+                      {msg && (
+                        <span className={`text-xs font-semibold w-16 text-right ${msg.ok ? "text-green-600" : "text-red-500"}`}>
+                          {msg.text}
+                        </span>
+                      )}
+                    </div>
+                  );
+                }
+                const lastVal = configVals[command];
+                return (
+                  <div key={command} className="px-4 py-3 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-gray-700">{label}{unit ? ` (${unit})` : ""}</div>
+                      <div className="text-xs text-gray-400">{desc} · range: {min}–{max}</div>
+                    </div>
+                    <div className="text-sm font-semibold text-gray-600 flex-shrink-0">
+                      {lastVal !== undefined ? `${lastVal}${unit ? ` ${unit}` : ""}` : "—"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Footer */}
         <div className="flex justify-between items-center text-xs text-gray-400 pt-3 border-t border-gray-100">
