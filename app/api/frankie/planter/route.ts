@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       speed_mph, armed, height, output_on, output_reason,
       seed_fault, seed_fault_row, vac_fault,
       sentinel_alarm, sentinel_target_gal, sentinel_avg_gal,
-      live_thresh, sentinel_en, seed_en, vac_en,
+      live_thresh, sentinel_en, seed_en, vac_en, height_en,
       cfg_min_speed, cfg_seed_delay, cfg_vac_delay, cfg_sent_delay,
       cfg_output_hold, cfg_fallback_thresh, cfg_sentinel_scale,
     } = body;
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
         speed_mph, armed, height, output_on, output_reason,
         seed_fault, seed_fault_row, vac_fault,
         sentinel_alarm, sentinel_target_gal, sentinel_avg_gal,
-        live_thresh, sentinel_en, seed_en, vac_en,
+        live_thresh, sentinel_en, seed_en, vac_en, height_en,
         cfg_min_speed, cfg_seed_delay, cfg_vac_delay, cfg_sent_delay,
         cfg_output_hold, cfg_fallback_thresh, cfg_sentinel_scale,
       }, { onConflict: "id" });
