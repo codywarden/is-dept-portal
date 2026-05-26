@@ -95,7 +95,7 @@ const CMD_TO_STATUS_FIELD: Record<string, keyof PlanterStatus> = {
   set_sentinel_scale:  "cfg_sentinel_scale",
 };
 
-export default function PlanterCard({ canControl = false }: { canControl?: boolean }) {
+export default function PlanterCard({ canControl = false, canViewSettings = false, canEditSettings = false }: { canControl?: boolean; canViewSettings?: boolean; canEditSettings?: boolean }) {
   const [planter, setPlanter] = useState<PlanterStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
@@ -377,6 +377,8 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
           })}
         </div>
         {/* Section: Config */}
+        {(canViewSettings || canEditSettings) && (
+        <>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Config</p>
         <div className="border border-gray-200 rounded-lg overflow-hidden mb-5">
           <button
@@ -385,7 +387,7 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
           >
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-gray-700">⚙️ Planter Settings</span>
-              {!canControl && (
+              {!canEditSettings && (
                 <span className="text-xs text-gray-400 bg-gray-200 rounded px-1.5 py-0.5">view only</span>
               )}
             </div>
@@ -394,7 +396,7 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
           {configOpen && (
             <div className="divide-y divide-gray-100">
               {CONFIG_FIELDS.map(({ label, command, unit, min, max, step, desc }) => {
-                if (canControl) {
+                if (canEditSettings) {
                   const val = configVals[command] ?? "";
                   const msg = configMsg[command];
                   const numVal = parseFloat(val);
@@ -447,6 +449,8 @@ export default function PlanterCard({ canControl = false }: { canControl?: boole
             </div>
           )}
         </div>
+        </>
+        )}
 
         {/* Footer */}
         <div className="flex justify-between items-center text-xs text-gray-400 pt-3 border-t border-gray-100">

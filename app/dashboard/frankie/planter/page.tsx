@@ -24,13 +24,16 @@ export default async function PlanterPage() {
     redirect("/dashboard");
   }
 
-  const canControl        = role === "admin" || !!pagePermissions["frankie"] || !!pagePermissions["frankie/planter"];
-  const canManageFirmware = role === "admin" || !!pagePermissions["frankie_planter_firmware"];
+  const isAdmin           = role === "admin";
+  const canControl        = isAdmin || !!pagePermissions["frankie"] || !!pagePermissions["frankie/planter"];
+  const canManageFirmware = isAdmin || !!pagePermissions["frankie_planter_firmware"];
+  const canViewSettings   = canControl || isAdmin || !!pagePermissions["frankie_planter_settings_view"] || !!pagePermissions["frankie_planter_settings_edit"];
+  const canEditSettings   = canControl || isAdmin || !!pagePermissions["frankie_planter_settings_edit"];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
-        <PlanterCard canControl={canControl} />
+        <PlanterCard canControl={canControl} canViewSettings={canViewSettings} canEditSettings={canEditSettings} />
         <PlanterFirmwareCard canManage={canManageFirmware} />
       </div>
     </div>
