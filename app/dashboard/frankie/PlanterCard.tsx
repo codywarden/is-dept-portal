@@ -104,6 +104,13 @@ interface Device {
   firmware_version: string | null;
 }
 
+const TOGGLE_TO_FIELD: Record<string, keyof PlanterStatus> = {
+  set_height_en:   "height_en",
+  set_sentinel_en: "sentinel_en",
+  set_seed_en:     "seed_en",
+  set_vac_en:      "vac_en",
+};
+
 export default function PlanterCard({ canControl = false, canViewSettings = false, canEditSettings = false }: { canControl?: boolean; canViewSettings?: boolean; canEditSettings?: boolean }) {
   const [devices, setDevices] = useState<Device[]>([]);
   const [selectedDevice, setSelectedDevice] = useState("default");
@@ -111,7 +118,8 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
   const [loading, setLoading] = useState(true);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [pendingToggles, setPendingToggles] = useState<Record<string, boolean>>({});
-  const [toggleMsg, setToggleMsg] = useState<Record<string, string | null>>({});
+  const [toggleExpected, setToggleExpected] = useState<Record<string, { value: boolean; msg: "Queued" | "Failed" } | null>>({});
+  const toggleTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [faultLog, setFaultLog] = useState<FaultEntry[]>([]);
   const [configOpen, setConfigOpen] = useState(false);
   const [configVals, setConfigVals] = useState<Record<string, string>>({});
@@ -221,16 +229,21 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
   }, [selectedDevice]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendToggle = async (command: string, value: boolean) => {
+    const expectedValue = !value;
     setPendingToggles(prev => ({ ...prev, [command]: true }));
+    if (toggleTimers.current[command]) clearTimeout(toggleTimers.current[command]);
     try {
       const res = await fetch("/api/frankie/planter/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, value, device_id: selectedDevice }),
+        body: JSON.stringify({ command, value: expectedValue, device_id: selectedDevice }),
       });
       if (res.ok) {
-        setToggleMsg(prev => ({ ...prev, [command]: "Queued" }));
-        setTimeout(() => setToggleMsg(prev => ({ ...prev, [command]: null })), 3000);
+        setToggleExpected(prev => ({ ...prev, [command]: { value: expectedValue, msg: "Queued" } }));
+        toggleTimers.current[command] = setTimeout(() => {
+          setToggleExpected(prev => prev[command] ? { ...prev, [command]: { value: expectedValue, msg: "Failed" } } : prev);
+          setTimeout(() => setToggleExpected(prev => { const n = { ...prev }; delete n[command]; return n; }), 3000);
+        }, 15000);
       }
     } finally {
       setPendingToggles(prev => { const n = { ...prev }; delete n[command]; return n; });
@@ -253,6 +266,26 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
       setTimeout(() => setConfigMsg(prev => ({ ...prev, [command]: null })), 3000);
     }
   };
+
+  // Clear "Queued" as soon as the ESP32 reports the expected state
+  useEffect(() => {
+    if (!planter) return;
+    setToggleExpected(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const [cmd, expected] of Object.entries(next)) {
+        if (!expected || expected.msg === "Failed") continue;
+        const field = TOGGLE_TO_FIELD[cmd];
+        if (field && planter[field] === expected.value) {
+          clearTimeout(toggleTimers.current[cmd]);
+          delete toggleTimers.current[cmd];
+          delete next[cmd];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [planter]);
 
   const online   = planter?.status === "online";
   const anyFault = planter?.output_on || planter?.seed_fault || planter?.vac_fault || planter?.sentinel_alarm;
@@ -426,8 +459,8 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
             { label: "SEEDING", command: "set_seed_en", value: planter?.seed_en },
             { label: "VACUUM", command: "set_vac_en", value: planter?.vac_en },
           ].map(({ label, command, value }) => {
-            const pending = !!pendingToggles[command];
-            const queued  = toggleMsg[command];
+            const pending  = !!pendingToggles[command];
+            const expected = toggleExpected[command];
             const disabled = !online || !canControl || pending;
             const isOn = value === true;
             return (
@@ -435,15 +468,21 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
                 <div className="text-xs text-gray-400 mb-2">{label}</div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => !disabled && sendToggle(command, !value)}
+                    onClick={() => !disabled && sendToggle(command, value ?? false)}
                     disabled={disabled}
                     aria-label={`Toggle ${label}`}
                     className={`relative w-14 h-7 rounded-full transition-colors duration-300 flex-shrink-0 ${isOn ? "bg-green-500" : "bg-gray-300"} ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
                   >
                     <span className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-300 ${isOn ? "translate-x-7" : "translate-x-0"}`} />
                   </button>
-                  <span className={`text-xs font-semibold ${queued ? "text-blue-500" : !online ? "text-gray-400" : isOn ? "text-green-700" : "text-gray-400"}`}>
-                    {pending ? "..." : queued ? queued : !online ? "—" : value == null ? "—" : isOn ? "ON" : "OFF"}
+                  <span className={`text-xs font-semibold ${
+                    pending                      ? "text-gray-400"  :
+                    expected?.msg === "Queued"   ? "text-blue-500"  :
+                    expected?.msg === "Failed"   ? "text-red-500"   :
+                    !online                      ? "text-gray-400"  :
+                    isOn                         ? "text-green-700" : "text-gray-400"
+                  }`}>
+                    {pending ? "..." : expected?.msg ?? (!online ? "—" : value == null ? "—" : isOn ? "ON" : "OFF")}
                   </span>
                 </div>
               </div>
