@@ -52,7 +52,7 @@ const PAGE_GROUPS: PageGroup[] = [
     subpages: [
       {
         key: "frankie/planter",
-        label: "Planter Status",
+        label: "Planter Card",
         children: [
           { key: "frankie_planter_firmware", label: "Planter Firmware Upload" },
           {
@@ -63,13 +63,13 @@ const PAGE_GROUPS: PageGroup[] = [
               { key: "frankie_planter_settings_edit", label: "Edit Settings" },
             ],
           },
-          {
-            key: "frankie_planter_boards",
-            label: "Planter Boards",
-            grandchildren: [
-              { key: "frankie_planter_boards_manage", label: "Edit Board Info" },
-            ],
-          },
+        ],
+      },
+      {
+        key: "frankie/planter_boards",
+        label: "Boards Card",
+        children: [
+          { key: "frankie_planter_boards_manage", label: "Edit Board Info" },
         ],
       },
       {

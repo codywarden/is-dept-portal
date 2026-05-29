@@ -97,7 +97,8 @@ const CMD_TO_STATUS_FIELD: Record<string, keyof PlanterStatus> = {
 
 interface Device {
   id: string;
-  label: string;
+  name: string | null;
+  location: string | null;
   online: boolean;
   last_seen: string | null;
   firmware_version: string | null;
@@ -251,12 +252,19 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
   const online   = planter?.status === "online";
   const anyFault = planter?.output_on || planter?.seed_fault || planter?.vac_fault || planter?.sentinel_alarm;
 
+  const activeDevice   = devices.find(d => d.id === selectedDevice);
+  const boardName      = activeDevice?.name ?? (selectedDevice === "default" ? "Default" : selectedDevice.charAt(0).toUpperCase() + selectedDevice.slice(1));
+  const boardSubtitle  = activeDevice?.location ? `${boardName} · ${activeDevice.location}` : boardName;
+
   return (
     <div className={`bg-white rounded-lg shadow-lg overflow-hidden border-t-4 ${anyFault ? "border-red-500" : online ? "border-green-600" : "border-gray-300"}`}>
 
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-800">🌱 Frankie Planter</h3>
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800">🌱 Frankie Planter</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{boardSubtitle}</p>
+        </div>
         <div className="flex items-center gap-2 text-sm">
           {loading ? <span className="text-yellow-500">● checking...</span>
             : online ? <span className="text-green-500">● online</span>
@@ -267,24 +275,28 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
         </div>
       </div>
 
+
       {/* Device selector — only shown when more than one board is known */}
       {devices.length > 1 && (
         <div className="px-6 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
           <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide mr-1">Board</span>
-          {devices.map(d => (
-            <button
-              key={d.id}
-              onClick={() => setSelectedDevice(d.id)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                selectedDevice === d.id
-                  ? "bg-green-600 text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-700"
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${d.online ? (selectedDevice === d.id ? "bg-green-300" : "bg-green-500") : "bg-gray-300"}`} />
-              {d.label}
-            </button>
-          ))}
+          {devices.map(d => {
+            const tabLabel = d.name ?? (d.id === "default" ? "Production" : d.id.charAt(0).toUpperCase() + d.id.slice(1));
+            return (
+              <button
+                key={d.id}
+                onClick={() => setSelectedDevice(d.id)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                  selectedDevice === d.id
+                    ? "bg-green-600 text-white"
+                    : "bg-white border border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-700"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${d.online ? (selectedDevice === d.id ? "bg-green-300" : "bg-green-500") : "bg-gray-300"}`} />
+                {tabLabel}
+              </button>
+            );
+          })}
         </div>
       )}
 

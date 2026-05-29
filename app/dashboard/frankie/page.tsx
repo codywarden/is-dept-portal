@@ -18,17 +18,16 @@ export default async function FrankiePage() {
   const role = ((profile?.role ?? "user") as Role);
   const pagePermissions = (profile?.page_permissions as Record<string, boolean> | null) ?? {};
 
-  const hasAccess =
-    role === "admin" ||
-    pagePermissions["frankie"] ||
-    pagePermissions["frankie/planter"] ||
-    pagePermissions["frankie/remote"] ||
-    pagePermissions["frankie_firmware"];
+  const isAdmin = role === "admin";
+  const p = pagePermissions;
 
+  const hasAccess = isAdmin || !!p["frankie"] || !!p["frankie/planter"] || !!p["frankie/remote"]
+    || !!p["frankie_firmware"] || !!p["frankie/planter_boards"] || !!p["frankie_planter_boards_manage"];
   if (!hasAccess) redirect("/dashboard");
 
-  const canPlanter = role === "admin" || !!pagePermissions["frankie"] || !!pagePermissions["frankie/planter"];
-  const canRemote  = role === "admin" || !!pagePermissions["frankie"] || !!pagePermissions["frankie/remote"];
+  const canPlanter = isAdmin || !!p["frankie"] || !!p["frankie/planter"]
+    || !!p["frankie/planter_boards"] || !!p["frankie_planter_boards_manage"];
+  const canRemote  = isAdmin || !!p["frankie"] || !!p["frankie/remote"];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 p-4 md:p-8">

@@ -21,17 +21,20 @@ export default async function PlanterPage() {
   const role = ((profile?.role ?? "user") as Role);
   const pagePermissions = (profile?.page_permissions as Record<string, boolean> | null) ?? {};
 
-  if (role !== "admin" && !pagePermissions["frankie"] && !pagePermissions["frankie/planter"] && !pagePermissions["frankie_planter_firmware"]) {
-    redirect("/dashboard");
-  }
+  const isAdmin = role === "admin";
+  const p = pagePermissions;
 
-  const isAdmin           = role === "admin";
-  const canControl        = isAdmin || !!pagePermissions["frankie"] || !!pagePermissions["frankie/planter"];
-  const canManageFirmware = isAdmin || !!pagePermissions["frankie_planter_firmware"];
-  const canViewSettings   = canControl || isAdmin || !!pagePermissions["frankie_planter_settings_view"] || !!pagePermissions["frankie_planter_settings_edit"];
-  const canEditSettings   = canControl || isAdmin || !!pagePermissions["frankie_planter_settings_edit"];
-  const canViewBoards     = isAdmin || !!pagePermissions["frankie_planter_boards"] || !!pagePermissions["frankie_planter_boards_manage"];
-  const canManageBoards   = isAdmin || !!pagePermissions["frankie_planter_boards_manage"];
+  const hasAnyAccess = isAdmin
+    || !!p["frankie"] || !!p["frankie/planter"] || !!p["frankie_planter_firmware"]
+    || !!p["frankie/planter_boards"] || !!p["frankie_planter_boards_manage"];
+  if (!hasAnyAccess) redirect("/dashboard");
+
+  const canControl        = isAdmin || !!p["frankie"] || !!p["frankie/planter"];
+  const canManageFirmware = isAdmin || !!p["frankie_planter_firmware"];
+  const canViewSettings   = canControl || !!p["frankie_planter_settings_view"] || !!p["frankie_planter_settings_edit"];
+  const canEditSettings   = canControl || !!p["frankie_planter_settings_edit"];
+  const canViewBoards     = isAdmin || !!p["frankie/planter_boards"] || !!p["frankie_planter_boards_manage"];
+  const canManageBoards   = isAdmin || !!p["frankie_planter_boards_manage"];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 p-4 md:p-8">
