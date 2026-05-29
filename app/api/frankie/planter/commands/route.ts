@@ -7,15 +7,17 @@ const VALID_COMMANDS = [
   "set_height_en", "set_sentinel_en", "set_seed_en", "set_vac_en", "ota_update",
   "set_min_speed", "set_seed_delay", "set_vac_delay", "set_sent_delay",
   "set_output_hold", "set_fallback_thresh", "set_sentinel_scale",
+  "set_device_name",
 ] as const;
 type PlanterCommand = typeof VALID_COMMANDS[number];
 
 const VALUE_OPTIONAL_COMMANDS: readonly string[] = ["ota_update"];
-const BOOLEAN_COMMANDS: readonly string[] = ["set_height_en", "set_sentinel_en", "set_seed_en", "set_vac_en"];
-const NUMERIC_COMMANDS: readonly string[] = [
+const BOOLEAN_COMMANDS: readonly string[]  = ["set_height_en", "set_sentinel_en", "set_seed_en", "set_vac_en"];
+const NUMERIC_COMMANDS: readonly string[]  = [
   "set_min_speed", "set_seed_delay", "set_vac_delay", "set_sent_delay",
   "set_output_hold", "set_fallback_thresh", "set_sentinel_scale",
 ];
+const STRING_COMMANDS: readonly string[]   = ["set_device_name"];
 
 // POST — dashboard sends a command (authenticated)
 export async function POST(req: NextRequest) {
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { command, value, num_value, device_id = "default" } = body;
+    const { command, value, num_value, string_value, device_id = "default" } = body;
 
     if (!command || !VALID_COMMANDS.includes(command as PlanterCommand)) {
       return NextResponse.json({ error: "Invalid command" }, { status: 400 });
@@ -62,8 +64,8 @@ export async function POST(req: NextRequest) {
     if (NUMERIC_COMMANDS.includes(command) && typeof num_value !== "number") {
       return NextResponse.json({ error: "num_value must be a number" }, { status: 400 });
     }
-    if (!VALUE_OPTIONAL_COMMANDS.includes(command) && !BOOLEAN_COMMANDS.includes(command) && !NUMERIC_COMMANDS.includes(command)) {
-      return NextResponse.json({ error: "Invalid command type" }, { status: 400 });
+    if (STRING_COMMANDS.includes(command) && typeof string_value !== "string") {
+      return NextResponse.json({ error: "string_value must be a string" }, { status: 400 });
     }
 
     const admin = createSupabaseAdmin();
@@ -71,8 +73,9 @@ export async function POST(req: NextRequest) {
       .from("planter_commands")
       .insert({
         command,
-        value: BOOLEAN_COMMANDS.includes(command) ? value : null,
-        num_value: NUMERIC_COMMANDS.includes(command) ? num_value : null,
+        value:        BOOLEAN_COMMANDS.includes(command) ? value        : null,
+        num_value:    NUMERIC_COMMANDS.includes(command) ? num_value    : null,
+        string_value: STRING_COMMANDS.includes(command)  ? string_value : null,
         status: "pending",
         sent_by: session.user.id,
         device_id,

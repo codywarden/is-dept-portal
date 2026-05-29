@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
 
     const {
       device_id = "default",
+      device_name,
       firmware_version, ip_address, wifi_ssid,
       speed_mph, armed, height, output_on, output_reason,
       seed_fault, seed_fault_row, vac_fault,
@@ -100,18 +101,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to update status" }, { status: 500 });
     }
 
+    // Upsert board record — keep any dashboard-assigned name unless the board
+    // is reporting a name for the first time (no existing name in DB)
+    const { data: existingDevice } = await supabase
+      .from("planter_devices")
+      .select("name")
+      .eq("id", device_id)
+      .single();
+
+    const nameToStore = existingDevice?.name ?? device_name ?? null;
+    await supabase
+      .from("planter_devices")
+      .upsert({ id: device_id, name: nameToStore, updated_at: new Date().toISOString() }, { onConflict: "id" });
+
     // Deliver next pending command in the telemetry response so the ESP32
     // doesn't need a separate polling loop
     const { data: command } = await supabase
       .from("planter_commands")
-      .select("id, command, value, num_value")
+      .select("id, command, value, num_value, string_value")
       .eq("device_id", device_id)
       .eq("status", "pending")
       .order("created_at", { ascending: true })
       .limit(1)
       .single();
 
-    return NextResponse.json({ success: true, command: command ?? null });
+    // Return the authoritative device_name so the board can sync its local name
+    const authoritative_name = nameToStore;
+
+    return NextResponse.json({ success: true, command: command ?? null, device_name: authoritative_name });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

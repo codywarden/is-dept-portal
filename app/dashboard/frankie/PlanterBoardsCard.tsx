@@ -63,6 +63,15 @@ export default function PlanterBoardsCard({ canManage = false }: { canManage?: b
         cancelEdit(id);
         setSaved(prev => ({ ...prev, [id]: true }));
         setTimeout(() => setSaved(prev => { const n = { ...prev }; delete n[id]; return n; }), 2000);
+
+        // Push the new name to the board so it saves locally
+        if (vals.name) {
+          fetch("/api/frankie/planter/commands", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command: "set_device_name", string_value: vals.name, device_id: id }),
+          }).catch(console.error);
+        }
       }
     } finally {
       setSaving(prev => { const n = { ...prev }; delete n[id]; return n; });
