@@ -111,6 +111,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
   const [loading, setLoading] = useState(true);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [pendingToggles, setPendingToggles] = useState<Record<string, boolean>>({});
+  const [toggleMsg, setToggleMsg] = useState<Record<string, string | null>>({});
   const [faultLog, setFaultLog] = useState<FaultEntry[]>([]);
   const [configOpen, setConfigOpen] = useState(false);
   const [configVals, setConfigVals] = useState<Record<string, string>>({});
@@ -222,11 +223,15 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
   const sendToggle = async (command: string, value: boolean) => {
     setPendingToggles(prev => ({ ...prev, [command]: true }));
     try {
-      await fetch("/api/frankie/planter/commands", {
+      const res = await fetch("/api/frankie/planter/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ command, value, device_id: selectedDevice }),
       });
+      if (res.ok) {
+        setToggleMsg(prev => ({ ...prev, [command]: "Queued" }));
+        setTimeout(() => setToggleMsg(prev => ({ ...prev, [command]: null })), 3000);
+      }
     } finally {
       setPendingToggles(prev => { const n = { ...prev }; delete n[command]; return n; });
     }
@@ -322,9 +327,9 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
           />
           <StatusCard
             label="HEIGHT"
-            value={online && planter ? (planter.height ?? "—") : "—"}
-            highlight={online && planter?.height === "DOWN"}
-            dim={!online}
+            value={!online ? "—" : !planter?.height_en ? "OFF" : (planter?.height ?? "—")}
+            highlight={online && !!planter?.height_en && planter?.height === "DOWN"}
+            dim={!online || !planter?.height_en}
           />
           <StatusCard
             label="ARMED"
@@ -422,6 +427,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
             { label: "VACUUM", command: "set_vac_en", value: planter?.vac_en },
           ].map(({ label, command, value }) => {
             const pending = !!pendingToggles[command];
+            const queued  = toggleMsg[command];
             const disabled = !online || !canControl || pending;
             const isOn = value === true;
             return (
@@ -436,8 +442,8 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
                   >
                     <span className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-300 ${isOn ? "translate-x-7" : "translate-x-0"}`} />
                   </button>
-                  <span className={`text-xs font-semibold ${!online ? "text-gray-400" : isOn ? "text-green-700" : "text-gray-400"}`}>
-                    {pending ? "..." : !online ? "—" : value == null ? "—" : isOn ? "ON" : "OFF"}
+                  <span className={`text-xs font-semibold ${queued ? "text-blue-500" : !online ? "text-gray-400" : isOn ? "text-green-700" : "text-gray-400"}`}>
+                    {pending ? "..." : queued ? queued : !online ? "—" : value == null ? "—" : isOn ? "ON" : "OFF"}
                   </span>
                 </div>
               </div>
