@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { command, value, num_value } = body;
+    const { command, value, num_value, device_id = "default" } = body;
 
     if (!command || !VALID_COMMANDS.includes(command as PlanterCommand)) {
       return NextResponse.json({ error: "Invalid command" }, { status: 400 });
@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
         num_value: NUMERIC_COMMANDS.includes(command) ? num_value : null,
         status: "pending",
         sent_by: session.user.id,
+        device_id,
       })
       .select()
       .single();
@@ -92,13 +93,15 @@ export async function POST(req: NextRequest) {
 }
 
 // GET — ESP32 polls for the next pending planter command (unauthenticated, service role)
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = createSupabaseAdmin();
+    const device_id = req.nextUrl.searchParams.get("device_id") ?? "default";
 
     const { data: command, error } = await supabase
       .from("planter_commands")
       .select("*")
+      .eq("device_id", device_id)
       .eq("status", "pending")
       .order("created_at", { ascending: true })
       .limit(1)

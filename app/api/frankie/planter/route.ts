@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/app/lib/supabase/admin";
 
 // GET — dashboard fetches latest planter status
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = createSupabaseAdmin();
+    const device_id = req.nextUrl.searchParams.get("device_id") ?? "default";
 
     const { data, error } = await supabase
       .from("planter_status")
       .select("*")
-      .eq("id", "default")
+      .eq("id", device_id)
       .single();
 
     if (error && error.code !== "PGRST116") {
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const {
+      device_id = "default",
       firmware_version, ip_address, wifi_ssid,
       speed_mph, armed, height, output_on, output_reason,
       seed_fault, seed_fault_row, vac_fault,
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
     const { data: prev } = await supabase
       .from("planter_status")
       .select("output_on, seed_fault, vac_fault, sentinel_alarm")
-      .eq("id", "default")
+      .eq("id", device_id)
       .single();
 
     const newFault =
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest) {
 
     if (newFault) {
       await supabase.from("planter_fault_log").insert({
+        device_id,
         occurred_at:    new Date().toISOString(),
         output_on:      output_on      ?? false,
         output_reason:  output_reason  ?? null,
@@ -80,7 +83,7 @@ export async function POST(req: NextRequest) {
     const { error } = await supabase
       .from("planter_status")
       .upsert({
-        id: "default",
+        id: device_id,
         last_seen: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         firmware_version, ip_address, wifi_ssid,
@@ -102,6 +105,7 @@ export async function POST(req: NextRequest) {
     const { data: command } = await supabase
       .from("planter_commands")
       .select("id, command, value, num_value")
+      .eq("device_id", device_id)
       .eq("status", "pending")
       .order("created_at", { ascending: true })
       .limit(1)

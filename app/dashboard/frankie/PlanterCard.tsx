@@ -95,7 +95,17 @@ const CMD_TO_STATUS_FIELD: Record<string, keyof PlanterStatus> = {
   set_sentinel_scale:  "cfg_sentinel_scale",
 };
 
+interface Device {
+  id: string;
+  label: string;
+  online: boolean;
+  last_seen: string | null;
+  firmware_version: string | null;
+}
+
 export default function PlanterCard({ canControl = false, canViewSettings = false, canEditSettings = false }: { canControl?: boolean; canViewSettings?: boolean; canEditSettings?: boolean }) {
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState("default");
   const [planter, setPlanter] = useState<PlanterStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
@@ -124,8 +134,28 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
     });
   };
 
+  // Fetch device list once on mount
   useEffect(() => {
-    fetch("/api/frankie/planter")
+    fetch("/api/frankie/planter/devices")
+      .then(r => r.ok ? r.json() : [])
+      .then((d: Device[]) => {
+        setDevices(d);
+        // If only one device and it's not "default", select it automatically
+        if (d.length === 1 && d[0].id !== "default") setSelectedDevice(d[0].id);
+      })
+      .catch(console.error);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch status/faults/config and subscribe to realtime for the selected device
+  useEffect(() => {
+    setLoading(true);
+    setPlanter(null);
+    setFaultLog([]);
+    setConfigVals({});
+
+    const q = `device_id=${selectedDevice}`;
+
+    fetch(`/api/frankie/planter?${q}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (!d) return;
@@ -135,13 +165,12 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
       .catch(console.error)
       .finally(() => setLoading(false));
 
-    fetch("/api/frankie/planter/faults")
+    fetch(`/api/frankie/planter/faults?${q}`)
       .then(r => r.ok ? r.json() : [])
       .then(d => setFaultLog(d))
       .catch(console.error);
 
-    // Fall back to last-sent command values for any fields the planter hasn't reported yet
-    fetch("/api/frankie/planter/config")
+    fetch(`/api/frankie/planter/config?${q}`)
       .then(r => r.ok ? r.json() : {})
       .then((d: Record<string, number>) => {
         setConfigVals(prev => {
@@ -154,16 +183,20 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
       })
       .catch(console.error);
 
+    setRealtimeStatus("connecting");
+    if (channelRef.current) { supabase.removeChannel(channelRef.current); }
+
     const ch = supabase
-      .channel("planter_realtime")
+      .channel(`planter_realtime_${selectedDevice}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "planter_status" },
         (payload) => {
-          if (payload.new) {
+          if (payload.new && (payload.new as { id: string }).id === selectedDevice) {
             const s = deriveStatus(payload.new);
             setPlanter(s);
             syncConfigFromStatus(s);
+            setDevices(prev => prev.map(d => d.id === selectedDevice ? { ...d, online: true, last_seen: s.last_seen } : d));
           }
         }
       )
@@ -171,7 +204,9 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "planter_fault_log" },
         (payload) => {
-          if (payload.new) setFaultLog(prev => [payload.new as FaultEntry, ...prev].slice(0, 10));
+          if (payload.new && (payload.new as { device_id: string }).device_id === selectedDevice) {
+            setFaultLog(prev => [payload.new as FaultEntry, ...prev].slice(0, 10));
+          }
         }
       )
       .subscribe((s) => {
@@ -181,7 +216,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
 
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); channelRef.current = null; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDevice]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendToggle = async (command: string, value: boolean) => {
     setPendingToggles(prev => ({ ...prev, [command]: true }));
@@ -189,7 +224,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
       await fetch("/api/frankie/planter/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, value }),
+        body: JSON.stringify({ command, value, device_id: selectedDevice }),
       });
     } finally {
       setPendingToggles(prev => { const n = { ...prev }; delete n[command]; return n; });
@@ -202,7 +237,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
       const res = await fetch("/api/frankie/planter/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, num_value }),
+        body: JSON.stringify({ command, num_value, device_id: selectedDevice }),
       });
       const ok = res.ok;
       setConfigMsg(prev => ({ ...prev, [command]: { text: ok ? "Queued" : "Error", ok } }));
@@ -231,6 +266,27 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
           )}
         </div>
       </div>
+
+      {/* Device selector — only shown when more than one board is known */}
+      {devices.length > 1 && (
+        <div className="px-6 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide mr-1">Board</span>
+          {devices.map(d => (
+            <button
+              key={d.id}
+              onClick={() => setSelectedDevice(d.id)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                selectedDevice === d.id
+                  ? "bg-green-600 text-white"
+                  : "bg-white border border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-700"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${d.online ? (selectedDevice === d.id ? "bg-green-300" : "bg-green-500") : "bg-gray-300"}`} />
+              {d.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="px-6 py-4">
 

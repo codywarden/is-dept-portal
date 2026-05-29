@@ -1,13 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/app/lib/supabase/admin";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = createSupabaseAdmin();
+    const device_id = req.nextUrl.searchParams.get("device_id") ?? "default";
 
     const { data, error } = await supabase
       .from("planter_fault_log")
       .select("*")
+      .eq("device_id", device_id)
       .order("occurred_at", { ascending: false })
       .limit(10);
 

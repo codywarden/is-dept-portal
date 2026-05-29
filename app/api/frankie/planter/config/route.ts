@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/app/lib/supabase/admin";
 
 const NUMERIC_COMMANDS = [
@@ -7,13 +7,15 @@ const NUMERIC_COMMANDS = [
 ] as const;
 
 // GET — return the last-sent value for each numeric config command
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = createSupabaseAdmin();
+    const device_id = req.nextUrl.searchParams.get("device_id") ?? "default";
 
     const { data, error } = await supabase
       .from("planter_commands")
       .select("command, num_value, created_at")
+      .eq("device_id", device_id)
       .in("command", NUMERIC_COMMANDS)
       .not("num_value", "is", null)
       .order("created_at", { ascending: false });
