@@ -364,9 +364,9 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
                     onClick={() => !disabled && sendToggle(command, !value)}
                     disabled={disabled}
                     aria-label={`Toggle ${label}`}
-                    className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 bg-gray-900 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                    className={`relative w-14 h-7 rounded-full transition-colors duration-300 flex-shrink-0 ${isOn ? "bg-green-500" : "bg-gray-300"} ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
                   >
-                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full shadow transition-all duration-200 ${isOn ? "translate-x-6 bg-green-400" : "translate-x-0 bg-gray-500"}`} />
+                    <span className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-300 ${isOn ? "translate-x-7" : "translate-x-0"}`} />
                   </button>
                   <span className={`text-xs font-semibold ${!online ? "text-gray-400" : isOn ? "text-green-700" : "text-gray-400"}`}>
                     {pending ? "..." : !online ? "—" : value == null ? "—" : isOn ? "ON" : "OFF"}
