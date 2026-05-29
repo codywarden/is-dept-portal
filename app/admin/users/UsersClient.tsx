@@ -63,6 +63,13 @@ const PAGE_GROUPS: PageGroup[] = [
               { key: "frankie_planter_settings_edit", label: "Edit Settings" },
             ],
           },
+          {
+            key: "frankie_planter_boards",
+            label: "Planter Boards",
+            grandchildren: [
+              { key: "frankie_planter_boards_manage", label: "Edit Board Info" },
+            ],
+          },
         ],
       },
       {
