@@ -1,18 +1,32 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+interface User {
+  id: string;
+  name: string;
+  email: string | null;
+}
 
 interface BoardRow {
   id: string;
   name: string | null;
   location: string | null;
   notes: string | null;
+  allowed_users: string[] | null;
   online: boolean;
   last_seen: string | null;
   firmware_version: string | null;
   ip_address: string | null;
   wifi_ssid: string | null;
 }
+
+type EditState = {
+  name: string;
+  location: string;
+  notes: string;
+  allowed_users: string[];
+};
 
 function timeAgo(iso: string): string {
   const diff = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
@@ -25,9 +39,12 @@ function timeAgo(iso: string): string {
 export default function PlanterBoardsCard({ canManage = false }: { canManage?: boolean }) {
   const [boards, setBoards] = useState<BoardRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<Record<string, { name: string; location: string; notes: string }>>({});
+  const [editing, setEditing] = useState<Record<string, EditState>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState<Record<string, boolean>>({});
+  const [users, setUsers] = useState<User[]>([]);
+  const [pickerOpen, setPickerOpen] = useState<Record<string, boolean>>({});
+  const pickerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     fetch("/api/frankie/planter/devices")
@@ -37,15 +54,42 @@ export default function PlanterBoardsCard({ canManage = false }: { canManage?: b
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!canManage) return;
+    fetch("/api/frankie/planter/users")
+      .then(r => r.ok ? r.json() : [])
+      .then(setUsers)
+      .catch(console.error);
+  }, [canManage]);
+
+  // Close user picker when clicking outside
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      for (const [id, ref] of Object.entries(pickerRefs.current)) {
+        if (ref && !ref.contains(e.target as Node)) {
+          setPickerOpen(prev => prev[id] ? { ...prev, [id]: false } : prev);
+        }
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   const startEdit = (b: BoardRow) => {
     setEditing(prev => ({
       ...prev,
-      [b.id]: { name: b.name ?? "", location: b.location ?? "", notes: b.notes ?? "" },
+      [b.id]: {
+        name: b.name ?? "",
+        location: b.location ?? "",
+        notes: b.notes ?? "",
+        allowed_users: b.allowed_users ?? [],
+      },
     }));
   };
 
   const cancelEdit = (id: string) => {
     setEditing(prev => { const n = { ...prev }; delete n[id]; return n; });
+    setPickerOpen(prev => { const n = { ...prev }; delete n[id]; return n; });
   };
 
   const saveBoard = async (id: string) => {
@@ -56,15 +100,26 @@ export default function PlanterBoardsCard({ canManage = false }: { canManage?: b
       const res = await fetch("/api/frankie/planter/devices", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, name: vals.name || null, location: vals.location || null, notes: vals.notes || null }),
+        body: JSON.stringify({
+          id,
+          name: vals.name || null,
+          location: vals.location || null,
+          notes: vals.notes || null,
+          allowed_users: vals.allowed_users.length > 0 ? vals.allowed_users : null,
+        }),
       });
       if (res.ok) {
-        setBoards(prev => prev.map(b => b.id === id ? { ...b, name: vals.name || null, location: vals.location || null, notes: vals.notes || null } : b));
+        setBoards(prev => prev.map(b => b.id === id ? {
+          ...b,
+          name: vals.name || null,
+          location: vals.location || null,
+          notes: vals.notes || null,
+          allowed_users: vals.allowed_users.length > 0 ? vals.allowed_users : null,
+        } : b));
         cancelEdit(id);
         setSaved(prev => ({ ...prev, [id]: true }));
         setTimeout(() => setSaved(prev => { const n = { ...prev }; delete n[id]; return n; }), 2000);
 
-        // Push the new name to the board so it saves locally
         if (vals.name) {
           fetch("/api/frankie/planter/commands", {
             method: "POST",
@@ -76,6 +131,30 @@ export default function PlanterBoardsCard({ canManage = false }: { canManage?: b
     } finally {
       setSaving(prev => { const n = { ...prev }; delete n[id]; return n; });
     }
+  };
+
+  const toggleUser = (boardId: string, userId: string) => {
+    setEditing(prev => {
+      const current = prev[boardId];
+      if (!current) return prev;
+      const already = current.allowed_users.includes(userId);
+      return {
+        ...prev,
+        [boardId]: {
+          ...current,
+          allowed_users: already
+            ? current.allowed_users.filter(u => u !== userId)
+            : [...current.allowed_users, userId],
+        },
+      };
+    });
+  };
+
+  const getUserLabel = (allowed: string[] | null): string => {
+    if (!allowed || allowed.length === 0) return "All users";
+    return allowed
+      .map(uid => users.find(u => u.id === uid)?.name ?? uid)
+      .join(", ");
   };
 
   return (
@@ -97,6 +176,7 @@ export default function PlanterBoardsCard({ canManage = false }: { canManage?: b
               const vals = editing[b.id];
               const isSaving = !!saving[b.id];
               const justSaved = !!saved[b.id];
+              const isPickerOpen = !!pickerOpen[b.id];
               const displayName = b.name ?? (b.id === "default" ? "Production" : b.id.charAt(0).toUpperCase() + b.id.slice(1));
 
               return (
@@ -192,6 +272,7 @@ export default function PlanterBoardsCard({ canManage = false }: { canManage?: b
                         {b.last_seen ? new Date(b.last_seen).toLocaleString() : "—"}
                       </div>
                     </div>
+
                     {(isEditing || b.notes) && (
                       <div className="col-span-2 md:col-span-3 mt-1">
                         <span className="text-gray-400">Notes</span>
@@ -205,6 +286,63 @@ export default function PlanterBoardsCard({ canManage = false }: { canManage?: b
                             />
                           ) : (
                             <span className="text-gray-700 font-medium">{b.notes}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* User access — visible to managers at all times, editable when editing */}
+                    {canManage && (
+                      <div className="col-span-2 md:col-span-3 mt-1">
+                        <span className="text-gray-400">User Access</span>
+                        <div className="mt-0.5">
+                          {isEditing ? (
+                            <div
+                              className="relative"
+                              ref={el => { pickerRefs.current[b.id] = el; }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setPickerOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}
+                                className="flex items-center gap-1.5 border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 hover:border-green-500 focus:outline-none focus:border-green-500 w-full text-left"
+                              >
+                                <span className="flex-1 truncate">
+                                  {vals.allowed_users.length === 0
+                                    ? "All users with planter access"
+                                    : `${vals.allowed_users.length} user${vals.allowed_users.length !== 1 ? "s" : ""} selected`}
+                                </span>
+                                <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isPickerOpen ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                                </svg>
+                              </button>
+                              {isPickerOpen && (
+                                <div className="absolute z-10 left-0 mt-1 w-full bg-white border border-gray-200 rounded shadow-lg max-h-48 overflow-y-auto">
+                                  {users.length === 0 ? (
+                                    <p className="px-3 py-2 text-xs text-gray-400 italic">Loading users…</p>
+                                  ) : (
+                                    users.map(u => (
+                                      <label
+                                        key={u.id}
+                                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer"
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={vals.allowed_users.includes(u.id)}
+                                          onChange={() => toggleUser(b.id, u.id)}
+                                          className="w-3 h-3 rounded accent-green-600"
+                                        />
+                                        <span className="text-xs text-gray-800 font-medium flex-1">{u.name}</span>
+                                        {u.email && <span className="text-xs text-gray-400 truncate max-w-[120px]">{u.email}</span>}
+                                      </label>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className={`text-xs font-medium ${!b.allowed_users || b.allowed_users.length === 0 ? "text-gray-400 italic" : "text-gray-700"}`}>
+                              {getUserLabel(b.allowed_users)}
+                            </span>
                           )}
                         </div>
                       </div>

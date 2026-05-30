@@ -1,0 +1,1 @@
+ALTER TABLE planter_devices ADD COLUMN IF NOT EXISTS allowed_users UUID[] DEFAULT NULL;

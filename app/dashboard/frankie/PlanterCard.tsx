@@ -150,8 +150,12 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
       .then(r => r.ok ? r.json() : [])
       .then((d: Device[]) => {
         setDevices(d);
-        // If only one device and it's not "default", select it automatically
-        if (d.length === 1 && d[0].id !== "default") setSelectedDevice(d[0].id);
+        // Auto-select the only board, or the first board if "default" isn't in the filtered list
+        if (d.length === 1) {
+          setSelectedDevice(d[0].id);
+        } else if (d.length > 1 && !d.find(dev => dev.id === "default")) {
+          setSelectedDevice(d[0].id);
+        }
       })
       .catch(console.error);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
