@@ -320,7 +320,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
 
       {/* Device selector — only shown when more than one board is known */}
       {devices.length > 1 && (
-        <div className="px-6 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+        <div className="px-6 py-2 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-2">
           <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide mr-1">Board</span>
           {devices.map(d => {
             const tabLabel = d.name ?? (d.id === "default" ? "Production" : d.id.charAt(0).toUpperCase() + d.id.slice(1));

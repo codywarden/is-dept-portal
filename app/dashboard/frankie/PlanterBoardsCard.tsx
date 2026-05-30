@@ -158,7 +158,7 @@ export default function PlanterBoardsCard({ canManage = false }: { canManage?: b
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden border-t-4 border-gray-300 mt-4">
+    <div className="bg-white rounded-lg shadow-lg border-t-4 border-gray-300 mt-4">
       <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-800">📋 Planter Boards</h3>
         <span className="text-xs text-gray-400">{boards.length} board{boards.length !== 1 ? "s" : ""} registered</span>
