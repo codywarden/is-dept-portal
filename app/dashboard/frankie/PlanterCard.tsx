@@ -450,61 +450,51 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
           />
         </div>
 
-        {/* Section: 12V Trip Log */}
-        <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">12V Trips — Tractor Stop Events</p>
-        <div className="mb-5">
-          {tripLog.length === 0 ? (
-            <p className="text-xs text-gray-400 italic">No relay trips recorded.</p>
-          ) : (
-            <div className="border border-red-200 rounded-lg overflow-hidden">
-              <div className="divide-y divide-red-100 overflow-y-auto max-h-48">
-                {tripLog.map((entry) => (
-                  <div key={entry.id} className="flex items-start gap-3 px-3 py-2 bg-red-50 hover:bg-red-100">
-                    <span className="text-xs text-red-500 mt-0.5 flex-shrink-0 font-bold">🚨</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-red-700 truncate">{entry.reason ?? "Unknown"}</p>
-                      <p className="text-xs text-gray-400">
-                        {new Date(entry.received_at).toLocaleString()} · {timeAgo(entry.received_at)}
-                        <span className="ml-2 text-gray-300">uptime {entry.device_uptime}</span>
-                      </p>
+        {/* Section: Trip Log + Fault Log side by side */}
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          {/* Left: 12V Trip Log */}
+          <div>
+            <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">12V Trips</p>
+            {tripLog.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">No relay trips recorded.</p>
+            ) : (
+              <div className="border border-red-200 rounded-lg overflow-hidden">
+                <div className="divide-y divide-red-100 overflow-y-auto max-h-40">
+                  {tripLog.map((entry) => (
+                    <div key={entry.id} className="flex items-start gap-2 px-2 py-2 bg-red-50 hover:bg-red-100">
+                      <span className="text-xs text-red-500 mt-0.5 flex-shrink-0 font-bold">🚨</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-red-700 truncate">{entry.reason ?? "Unknown"}</p>
+                        <p className="text-xs text-gray-400 truncate">{timeAgo(entry.received_at)}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-              {tripLog.length > 3 && (
-                <div className="px-3 py-1.5 bg-red-50 border-t border-red-100">
-                  <p className="text-xs text-red-400 text-center">{tripLog.length} trips — scroll to see all</p>
+                  ))}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
 
-        {/* Section: Fault Log (alarm detections) */}
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Alarm Log</p>
-        <div className="mb-5">
-          {faultLog.length === 0 ? (
-            <p className="text-xs text-gray-400 italic">No alarms recorded.</p>
-          ) : (
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="divide-y divide-gray-100 overflow-y-auto max-h-40">
-                {faultLog.map((entry) => (
-                  <div key={entry.id} className="flex items-start gap-3 px-3 py-2 bg-white hover:bg-gray-50">
-                    <span className="text-xs text-red-400 mt-0.5 flex-shrink-0">⚠</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-gray-800 truncate">{describeFault(entry)}</p>
-                      <p className="text-xs text-gray-400">{new Date(entry.occurred_at).toLocaleString()} · {timeAgo(entry.occurred_at)}</p>
+          {/* Right: Alarm Log */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Alarms</p>
+            {faultLog.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">No alarms recorded.</p>
+            ) : (
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="divide-y divide-gray-100 overflow-y-auto max-h-40">
+                  {faultLog.map((entry) => (
+                    <div key={entry.id} className="flex items-start gap-2 px-2 py-2 bg-white hover:bg-gray-50">
+                      <span className="text-xs text-red-400 mt-0.5 flex-shrink-0">⚠</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-gray-800 truncate">{describeFault(entry)}</p>
+                        <p className="text-xs text-gray-400 truncate">{timeAgo(entry.occurred_at)}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-              {faultLog.length > 3 && (
-                <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-100">
-                  <p className="text-xs text-gray-400 text-center">{faultLog.length} alarms — scroll to see all</p>
+                  ))}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Section: Controls */}
