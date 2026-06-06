@@ -70,6 +70,7 @@ const PAGE_GROUPS: PageGroup[] = [
         label: "Boards Card",
         children: [
           { key: "frankie_planter_boards_manage", label: "Edit Board Info" },
+          { key: "frankie_planter_boards_delete", label: "Delete Boards" },
         ],
       },
       {

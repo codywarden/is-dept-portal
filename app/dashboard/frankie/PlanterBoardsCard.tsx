@@ -36,12 +36,14 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-export default function PlanterBoardsCard({ canManage = false }: { canManage?: boolean }) {
+export default function PlanterBoardsCard({ canManage = false, canDelete = false }: { canManage?: boolean; canDelete?: boolean }) {
   const [boards, setBoards] = useState<BoardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Record<string, EditState>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState<Record<string, boolean>>({});
+  const [deleting, setDeleting] = useState<Record<string, boolean>>({});
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [pickerOpen, setPickerOpen] = useState<Record<string, boolean>>({});
   const pickerRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -133,6 +135,23 @@ export default function PlanterBoardsCard({ canManage = false }: { canManage?: b
     }
   };
 
+  const deleteBoard = async (id: string) => {
+    setDeleting(prev => ({ ...prev, [id]: true }));
+    try {
+      const res = await fetch("/api/frankie/planter/devices", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setBoards(prev => prev.filter(b => b.id !== id));
+        setConfirmDelete(null);
+      }
+    } finally {
+      setDeleting(prev => { const n = { ...prev }; delete n[id]; return n; });
+    }
+  };
+
   const toggleUser = (boardId: string, userId: string) => {
     setEditing(prev => {
       const current = prev[boardId];
@@ -177,7 +196,9 @@ export default function PlanterBoardsCard({ canManage = false }: { canManage?: b
               const isSaving = !!saving[b.id];
               const justSaved = !!saved[b.id];
               const isPickerOpen = !!pickerOpen[b.id];
-              const displayName = b.name ?? (b.id === "default" ? "Production" : b.id.charAt(0).toUpperCase() + b.id.slice(1));
+              const displayName = b.name ?? b.id.charAt(0).toUpperCase() + b.id.slice(1);
+              const isConfirmingDelete = confirmDelete === b.id;
+              const isDeleting = !!deleting[b.id];
 
               return (
                 <div key={b.id} className="py-4">
@@ -203,7 +224,33 @@ export default function PlanterBoardsCard({ canManage = false }: { canManage?: b
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {justSaved && <span className="text-xs text-green-600 font-semibold">Saved ✓</span>}
-                      {canManage && !isEditing && (
+                      {canDelete && !isEditing && !isConfirmingDelete && (
+                        <button
+                          onClick={() => setConfirmDelete(b.id)}
+                          className="text-xs text-gray-300 hover:text-red-500 font-semibold px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
+                      {isConfirmingDelete && (
+                        <>
+                          <span className="text-xs text-red-600 font-semibold">Remove this board?</span>
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            className="text-xs text-gray-400 hover:text-gray-600 font-semibold px-2 py-1 rounded hover:bg-gray-100"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => deleteBoard(b.id)}
+                            disabled={isDeleting}
+                            className="text-xs bg-red-600 hover:bg-red-700 text-white font-semibold px-3 py-1 rounded transition-colors disabled:opacity-50"
+                          >
+                            {isDeleting ? "Removing…" : "Yes, Remove"}
+                          </button>
+                        </>
+                      )}
+                      {canManage && !isEditing && !isConfirmingDelete && (
                         <button
                           onClick={() => startEdit(b)}
                           className="text-xs text-gray-400 hover:text-green-700 font-semibold px-2 py-1 rounded hover:bg-gray-100 transition-colors"

@@ -346,7 +346,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
         <div className="px-6 py-2 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-2">
           <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide mr-1">Board</span>
           {devices.map(d => {
-            const tabLabel = d.name ?? (d.id === "default" ? "Production" : d.id.charAt(0).toUpperCase() + d.id.slice(1));
+            const tabLabel = d.name ?? d.id.charAt(0).toUpperCase() + d.id.slice(1);
             return (
               <button
                 key={d.id}
@@ -454,7 +454,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
         <div className="grid grid-cols-2 gap-3 mb-5">
           {/* Left: 12V Trip Log */}
           <div>
-            <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">12V Trips</p>
+            <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">Tractor Stop Events</p>
             {tripLog.length === 0 ? (
               <p className="text-xs text-gray-400 italic">No relay trips recorded.</p>
             ) : (

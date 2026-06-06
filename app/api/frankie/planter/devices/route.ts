@@ -141,3 +141,32 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+// DELETE — remove a board from the system (requires frankie_planter_boards_delete)
+export async function DELETE(req: NextRequest) {
+  try {
+    const { session, profile } = await getSessionAndProfile();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const role = profile?.role ?? "user";
+    const perms = (profile?.page_permissions ?? {}) as Record<string, boolean>;
+
+    if (role !== "admin" && !perms["frankie_planter_boards_delete"]) {
+      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
+    }
+
+    const { id } = await req.json();
+    if (!id) return NextResponse.json({ error: "Missing device id" }, { status: 400 });
+
+    const admin = createSupabaseAdmin();
+    await Promise.all([
+      admin.from("planter_devices").delete().eq("id", id),
+      admin.from("planter_status").delete().eq("id", id),
+    ]);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("API error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

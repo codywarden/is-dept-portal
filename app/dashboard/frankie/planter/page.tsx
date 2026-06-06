@@ -35,13 +35,14 @@ export default async function PlanterPage() {
   const canEditSettings   = canControl || !!p["frankie_planter_settings_edit"];
   const canViewBoards     = isAdmin || !!p["frankie/planter_boards"] || !!p["frankie_planter_boards_manage"];
   const canManageBoards   = isAdmin || !!p["frankie_planter_boards_manage"];
+  const canDeleteBoards   = isAdmin || !!p["frankie_planter_boards_delete"];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
         <PlanterCard canControl={canControl} canViewSettings={canViewSettings} canEditSettings={canEditSettings} />
         <PlanterFirmwareCard canManage={canManageFirmware} />
-        {canViewBoards && <PlanterBoardsCard canManage={canManageBoards} />}
+        {canViewBoards && <PlanterBoardsCard canManage={canManageBoards} canDelete={canDeleteBoards} />}
       </div>
     </div>
   );
