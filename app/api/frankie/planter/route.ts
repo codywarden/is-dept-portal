@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       live_thresh, sentinel_en, seed_en, vac_en, height_en,
       cfg_min_speed, cfg_seed_delay, cfg_vac_delay, cfg_sent_delay,
       cfg_output_hold, cfg_fallback_thresh, cfg_sentinel_scale,
+      trips,
     } = body;
 
     // Check previous fault state to detect newly triggered faults
@@ -99,6 +100,24 @@ export async function POST(req: NextRequest) {
     if (error) {
       console.error("Database error:", error);
       return NextResponse.json({ error: "Failed to update status" }, { status: 500 });
+    }
+
+    // Save any new actual 12V relay fires from the device trip log.
+    // The device sends last 10 trips on every POST; the UNIQUE index on
+    // (device_id, device_uptime) silently drops duplicates.
+    if (Array.isArray(trips) && trips.length > 0) {
+      const rows = trips
+        .filter((t: unknown) => t && typeof t === "object" && (t as Record<string, unknown>).uptime)
+        .map((t: { uptime: string; reason?: string }) => ({
+          device_id,
+          device_uptime: t.uptime,
+          reason: t.reason ?? null,
+        }));
+      if (rows.length > 0) {
+        await supabase
+          .from("planter_trip_log")
+          .upsert(rows, { onConflict: "device_id,device_uptime", ignoreDuplicates: true });
+      }
     }
 
     // Upsert board record — keep any dashboard-assigned name unless the board

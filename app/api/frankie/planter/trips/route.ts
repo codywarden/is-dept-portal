@@ -1,0 +1,26 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseAdmin } from "@/app/lib/supabase/admin";
+
+export async function GET(req: NextRequest) {
+  try {
+    const supabase = createSupabaseAdmin();
+    const device_id = req.nextUrl.searchParams.get("device_id") ?? "default";
+
+    const { data, error } = await supabase
+      .from("planter_trip_log")
+      .select("id, device_uptime, reason, received_at")
+      .eq("device_id", device_id)
+      .order("received_at", { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error("Database error:", error);
+      return NextResponse.json({ error: "Database error" }, { status: 500 });
+    }
+
+    return NextResponse.json(data ?? []);
+  } catch (error) {
+    console.error("API error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

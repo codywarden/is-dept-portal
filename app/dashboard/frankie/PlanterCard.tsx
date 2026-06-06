@@ -15,6 +15,13 @@ interface FaultEntry {
   sentinel_alarm: boolean | null;
 }
 
+interface TripEntry {
+  id: number;
+  device_uptime: string;
+  reason: string | null;
+  received_at: string;
+}
+
 function describeFault(entry: FaultEntry): string {
   const parts: string[] = [];
   if (entry.output_on) parts.push(entry.output_reason ? `Stop: ${entry.output_reason}` : "Tractor Stop");
@@ -121,6 +128,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
   const [toggleExpected, setToggleExpected] = useState<Record<string, { value: boolean; msg: "Queued" | "Failed" } | null>>({});
   const toggleTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [faultLog, setFaultLog] = useState<FaultEntry[]>([]);
+  const [tripLog, setTripLog] = useState<TripEntry[]>([]);
   const [configOpen, setConfigOpen] = useState(false);
   const [configVals, setConfigVals] = useState<Record<string, string>>({});
   const [configMsg, setConfigMsg] = useState<Record<string, { text: string; ok: boolean } | null>>({});
@@ -165,6 +173,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
     setLoading(true);
     setPlanter(null);
     setFaultLog([]);
+    setTripLog([]);
     setConfigVals({});
 
     const q = `device_id=${selectedDevice}`;
@@ -182,6 +191,11 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
     fetch(`/api/frankie/planter/faults?${q}`)
       .then(r => r.ok ? r.json() : [])
       .then(d => setFaultLog(d))
+      .catch(console.error);
+
+    fetch(`/api/frankie/planter/trips?${q}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setTripLog(d))
       .catch(console.error);
 
     fetch(`/api/frankie/planter/config?${q}`)
@@ -220,6 +234,15 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
         (payload) => {
           if (payload.new && (payload.new as { device_id: string }).device_id === selectedDevice) {
             setFaultLog(prev => [payload.new as FaultEntry, ...prev].slice(0, 10));
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "planter_trip_log" },
+        (payload) => {
+          if (payload.new && (payload.new as { device_id: string }).device_id === selectedDevice) {
+            setTripLog(prev => [payload.new as TripEntry, ...prev].slice(0, 20));
           }
         }
       )
@@ -427,11 +450,41 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
           />
         </div>
 
-        {/* Section: Fault Log */}
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Fault Log</p>
+        {/* Section: 12V Trip Log */}
+        <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">12V Trips — Tractor Stop Events</p>
+        <div className="mb-5">
+          {tripLog.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">No relay trips recorded.</p>
+          ) : (
+            <div className="border border-red-200 rounded-lg overflow-hidden">
+              <div className="divide-y divide-red-100 overflow-y-auto max-h-48">
+                {tripLog.map((entry) => (
+                  <div key={entry.id} className="flex items-start gap-3 px-3 py-2 bg-red-50 hover:bg-red-100">
+                    <span className="text-xs text-red-500 mt-0.5 flex-shrink-0 font-bold">🚨</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-red-700 truncate">{entry.reason ?? "Unknown"}</p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(entry.received_at).toLocaleString()} · {timeAgo(entry.received_at)}
+                        <span className="ml-2 text-gray-300">uptime {entry.device_uptime}</span>
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {tripLog.length > 3 && (
+                <div className="px-3 py-1.5 bg-red-50 border-t border-red-100">
+                  <p className="text-xs text-red-400 text-center">{tripLog.length} trips — scroll to see all</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Section: Fault Log (alarm detections) */}
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Alarm Log</p>
         <div className="mb-5">
           {faultLog.length === 0 ? (
-            <p className="text-xs text-gray-400 italic">No faults recorded.</p>
+            <p className="text-xs text-gray-400 italic">No alarms recorded.</p>
           ) : (
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <div className="divide-y divide-gray-100 overflow-y-auto max-h-40">
@@ -447,7 +500,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
               </div>
               {faultLog.length > 3 && (
                 <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-100">
-                  <p className="text-xs text-gray-400 text-center">{faultLog.length} faults — scroll to see all</p>
+                  <p className="text-xs text-gray-400 text-center">{faultLog.length} alarms — scroll to see all</p>
                 </div>
               )}
             </div>
