@@ -17,8 +17,15 @@ interface FirmwareCheck {
   notes?: string | null;
 }
 
+interface Device {
+  id: string;
+  name: string | null;
+}
+
 export default function PlanterFirmwareCard({ canManage }: { canManage: boolean }) {
   const [open, setOpen]                     = useState(false);
+  const [devices, setDevices]               = useState<Device[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState("default");
   const [esp32Version, setEsp32Version]     = useState<string | null>(null);
   const [esp32Online, setEsp32Online]       = useState(false);
   const [releases, setReleases]             = useState<FirmwareRelease[]>([]);
@@ -36,20 +43,31 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const fetchAll = useCallback(async () => {
+  // Fetch device list once on mount
+  useEffect(() => {
+    if (!canManage) return;
+    fetch("/api/frankie/planter/devices")
+      .then(r => r.ok ? r.json() : [])
+      .then((d: Device[]) => {
+        setDevices(d);
+        if (d.length === 1) setSelectedDevice(d[0].id);
+        else if (d.length > 1 && !d.find(dev => dev.id === "default")) setSelectedDevice(d[0].id);
+      })
+      .catch(console.error);
+  }, [canManage]);
+
+  const fetchAll = useCallback(async (deviceId: string) => {
     try {
-      // Get current planter status for firmware version + online state
-      const statusRes = await fetch("/api/frankie/planter");
+      const q = `device_id=${deviceId}`;
+      const statusRes = await fetch(`/api/frankie/planter?${q}`);
       const statusData = statusRes.ok ? await statusRes.json() : null;
       const version = statusData?.firmware_version ?? null;
       setEsp32Version(version);
       setEsp32Online(statusData?.status === "online");
 
-      // Check if update available against the planter-specific endpoint
       const checkRes = await fetch(`/api/frankie/planter/firmware?version=${version ?? ""}`);
       if (checkRes.ok) setFirmwareCheck(await checkRes.json());
 
-      // Fetch release history from Supabase directly
       const { data } = await supabase
         .from("planter_firmware_releases")
         .select("id, version, notes, is_active, created_at")
@@ -58,7 +76,7 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
     } catch (e) { console.error(e); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (canManage) fetchAll(); }, [canManage, fetchAll]);
+  useEffect(() => { if (canManage) fetchAll(selectedDevice); }, [canManage, selectedDevice, fetchAll]);
 
   if (!canManage) return null;
 
@@ -77,7 +95,7 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
       if (!res.ok) throw new Error(data.error);
       setMsg(`v${data.version} uploaded`);
       setFirmwareFile(null); setFirmwareVersion(""); setFirmwareNotes("");
-      fetchAll();
+      fetchAll(selectedDevice);
     } catch (e: unknown) {
       setMsg(`Error: ${e instanceof Error ? e.message : "Unknown error"}`);
     } finally { setUploading(false); }
@@ -89,7 +107,7 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
-    if (res.ok) { setMsg("Release activated"); fetchAll(); }
+    if (res.ok) { setMsg("Release activated"); fetchAll(selectedDevice); }
   };
 
   const pushOTA = async () => {
@@ -99,10 +117,10 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
       const res = await fetch("/api/frankie/planter/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: "ota_update" }),
+        body: JSON.stringify({ command: "ota_update", device_id: selectedDevice }),
       });
       if (!res.ok) throw new Error("Failed to send command");
-      setMsg("OTA update sent — planter will apply within 5 s");
+      setMsg("OTA update sent — planter will apply within 30 s");
     } catch {
       setMsg("Error sending OTA command");
     } finally { setPushing(false); }
@@ -130,6 +148,31 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
 
       {open && (
         <div className="px-6 pb-6">
+
+          {/* Device selector */}
+          {devices.length > 1 && (
+            <div className="mb-4 flex items-center gap-3">
+              <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Board</span>
+              <div className="flex flex-wrap gap-2">
+                {devices.map(d => {
+                  const label = d.name ?? (d.id === "default" ? "Default" : d.id);
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => setSelectedDevice(d.id)}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                        selectedDevice === d.id
+                          ? "bg-green-600 text-white"
+                          : "bg-white border border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-700"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Update available banner */}
           {firmwareCheck?.update_available && (
