@@ -407,7 +407,7 @@ export default function PlanterCard({ canControl = false, canViewSettings = fals
           <StatusCard
             label="SENTINEL"
             value={!online ? "—" : !planter?.sentinel_en ? "OFF" : !planter?.armed ? "NOT ARMED" : planter?.sentinel_alarm ? "ALARM" : "OK"}
-            alarm={online && !!planter?.sentinel_alarm}
+            alarm={online && !!planter?.armed && !!planter?.sentinel_alarm}
             ok={online && planter?.sentinel_en === true && !!planter?.armed && !planter?.sentinel_alarm}
             warn={online && planter?.sentinel_en === true && !planter?.armed}
             dim={!online || !planter?.sentinel_en}
