@@ -40,19 +40,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ update_available: false, current_version: release.version });
     }
 
-    const { data: signedUrl, error: urlError } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(release.storage_path, 120);
-
-    if (urlError || !signedUrl) {
-      return NextResponse.json({ error: "Failed to generate download URL" }, { status: 500 });
-    }
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
+      ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
     return NextResponse.json({
       update_available: true,
       version: release.version,
-      notes: release.notes,
-      url: signedUrl.signedUrl,
+      url: `${baseUrl}/api/frankie/planter/firmware/dl`,
     });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
