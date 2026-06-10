@@ -244,7 +244,7 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
             <div className="bg-green-50 border-l-4 border-green-600 p-4 rounded mb-6 flex items-center justify-between">
               <div>
                 <p className="font-semibold text-green-800">
-                  v{firmwareCheck.version} available for Frankie Planter
+                  v{firmwareCheck.version} available
                 </p>
                 {firmwareCheck.notes && (
                   <p className="text-sm text-green-700">{firmwareCheck.notes}</p>
@@ -289,7 +289,7 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
                   {c.status === "processed" && (
                     <span className="flex items-center gap-1.5 text-xs text-green-600 font-semibold">
                       <span className="w-2 h-2 rounded-full bg-green-500" />
-                      Applied ✓
+                      Command received — watch for reboot &amp; version change
                     </span>
                   )}
                   {c.status === "failed" && (
@@ -361,7 +361,7 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
           {/* Release history */}
           {releases.length > 0 && (
             <div>
-              <h3 className="font-semibold text-gray-700 mb-3">Release History — Frankie Planter</h3>
+              <h3 className="font-semibold text-gray-700 mb-3">Release History</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
