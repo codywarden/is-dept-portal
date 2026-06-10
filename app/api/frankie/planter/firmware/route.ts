@@ -40,8 +40,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ update_available: false, current_version: release.version });
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
-      ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+    // Use NEXT_PUBLIC_SITE_URL if set; otherwise derive from request headers.
+    // VERCEL_URL returns per-deployment preview URLs, not the production domain.
+    const proto = req.headers.get("x-forwarded-proto") ?? "https";
+    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? `${proto}://${host}`;
 
     return NextResponse.json({
       update_available: true,
