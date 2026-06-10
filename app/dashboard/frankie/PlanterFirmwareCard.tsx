@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 
 interface FirmwareRelease {
@@ -37,6 +37,31 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
   const [uploading, setUploading]           = useState(false);
   const [pushing, setPushing]               = useState(false);
   const [msg, setMsg]                       = useState("");
+
+  type CmdStatus = { deviceId: string; name: string; commandId: number; status: "pending" | "processed" | "failed" };
+  const [otaCmdStatus, setOtaCmdStatus]     = useState<CmdStatus[]>([]);
+  const pollRef                             = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll command statuses until all are resolved
+  useEffect(() => {
+    const pending = otaCmdStatus.filter(c => c.status === "pending");
+    if (pending.length === 0) {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      return;
+    }
+    if (pollRef.current) return; // already polling
+    pollRef.current = setInterval(async () => {
+      const ids = otaCmdStatus.map(c => c.commandId).join(",");
+      const res = await fetch(`/api/frankie/planter/commands/status?ids=${ids}`);
+      if (!res.ok) return;
+      const rows: { id: number; status: string }[] = await res.json();
+      setOtaCmdStatus(prev => prev.map(c => {
+        const updated = rows.find(r => r.id === c.commandId);
+        return updated ? { ...c, status: updated.status as CmdStatus["status"] } : c;
+      }));
+    }, 5000);
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [otaCmdStatus]);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -123,22 +148,33 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
     if (otaTargets.length === 0) return;
     setPushing(true);
     setMsg("");
+    setOtaCmdStatus([]);
     try {
       const results = await Promise.all(
-        otaTargets.map(deviceId =>
-          fetch("/api/frankie/planter/commands", {
+        otaTargets.map(async deviceId => {
+          const r = await fetch("/api/frankie/planter/commands", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ command: "ota_update", device_id: deviceId }),
-          }).then(r => ({ deviceId, ok: r.ok }))
-        )
+          });
+          const data = r.ok ? await r.json() : null;
+          return { deviceId, ok: r.ok, commandId: data?.command?.id ?? null };
+        })
       );
+      const statuses: CmdStatus[] = results
+        .filter(r => r.ok && r.commandId)
+        .map(r => ({
+          deviceId: r.deviceId,
+          name: devices.find(d => d.id === r.deviceId)?.name ?? r.deviceId,
+          commandId: r.commandId,
+          status: "pending" as const,
+        }));
+      setOtaCmdStatus(statuses);
       const failed = results.filter(r => !r.ok);
-      if (failed.length === 0) {
-        setMsg(`OTA sent to ${otaTargets.length} board${otaTargets.length > 1 ? "s" : ""} — will apply within 30s`);
-      } else {
-        setMsg(`Sent to ${results.length - failed.length}/${results.length} boards — ${failed.length} failed`);
-      }
+      setMsg(failed.length === 0
+        ? `OTA queued for ${otaTargets.length} board${otaTargets.length > 1 ? "s" : ""} — watching status below`
+        : `Queued ${results.length - failed.length}/${results.length} — ${failed.length} failed to send`
+      );
     } catch {
       setMsg("Error sending OTA command");
     } finally { setPushing(false); }
@@ -232,6 +268,38 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
           {!esp32Online && (
             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded mb-4 text-sm text-yellow-800">
               Planter is offline — OTA push will queue and apply when it reconnects.
+            </div>
+          )}
+
+          {/* OTA command status tracker */}
+          {otaCmdStatus.length > 0 && (
+            <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+              <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">OTA Status</p>
+              </div>
+              {otaCmdStatus.map(c => (
+                <div key={c.commandId} className="flex items-center justify-between px-4 py-2.5 border-b last:border-0">
+                  <span className="text-sm text-gray-700 font-medium">{c.name}</span>
+                  {c.status === "pending" && (
+                    <span className="flex items-center gap-1.5 text-xs text-yellow-600 font-semibold">
+                      <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                      Waiting for board to pick up…
+                    </span>
+                  )}
+                  {c.status === "processed" && (
+                    <span className="flex items-center gap-1.5 text-xs text-green-600 font-semibold">
+                      <span className="w-2 h-2 rounded-full bg-green-500" />
+                      Applied ✓
+                    </span>
+                  )}
+                  {c.status === "failed" && (
+                    <span className="flex items-center gap-1.5 text-xs text-red-600 font-semibold">
+                      <span className="w-2 h-2 rounded-full bg-red-500" />
+                      Failed — board rejected the update
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
