@@ -25,7 +25,7 @@ interface Device {
 export default function PlanterFirmwareCard({ canManage }: { canManage: boolean }) {
   const [open, setOpen]                     = useState(false);
   const [devices, setDevices]               = useState<Device[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState("default");
+  const [otaTargets, setOtaTargets]         = useState<string[]>([]);
   const [esp32Version, setEsp32Version]     = useState<string | null>(null);
   const [esp32Online, setEsp32Online]       = useState(false);
   const [releases, setReleases]             = useState<FirmwareRelease[]>([]);
@@ -43,6 +43,15 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  // The device used for status/version display is always the first OTA target
+  const viewDevice = otaTargets[0] ?? "default";
+
+  const toggleTarget = (id: string) => {
+    setOtaTargets(prev =>
+      prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]
+    );
+  };
+
   // Fetch device list once on mount
   useEffect(() => {
     if (!canManage) return;
@@ -50,8 +59,8 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
       .then(r => r.ok ? r.json() : [])
       .then((d: Device[]) => {
         setDevices(d);
-        if (d.length === 1) setSelectedDevice(d[0].id);
-        else if (d.length > 1 && !d.find(dev => dev.id === "default")) setSelectedDevice(d[0].id);
+        // Default: select all boards as OTA targets
+        setOtaTargets(d.map(dev => dev.id));
       })
       .catch(console.error);
   }, [canManage]);
@@ -76,7 +85,7 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
     } catch (e) { console.error(e); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (canManage) fetchAll(selectedDevice); }, [canManage, selectedDevice, fetchAll]);
+  useEffect(() => { if (canManage) fetchAll(viewDevice); }, [canManage, viewDevice, fetchAll]);
 
   if (!canManage) return null;
 
@@ -95,7 +104,7 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
       if (!res.ok) throw new Error(data.error);
       setMsg(`v${data.version} uploaded`);
       setFirmwareFile(null); setFirmwareVersion(""); setFirmwareNotes("");
-      fetchAll(selectedDevice);
+      fetchAll(viewDevice);
     } catch (e: unknown) {
       setMsg(`Error: ${e instanceof Error ? e.message : "Unknown error"}`);
     } finally { setUploading(false); }
@@ -107,20 +116,29 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
-    if (res.ok) { setMsg("Release activated"); fetchAll(selectedDevice); }
+    if (res.ok) { setMsg("Release activated"); fetchAll(viewDevice); }
   };
 
   const pushOTA = async () => {
+    if (otaTargets.length === 0) return;
     setPushing(true);
     setMsg("");
     try {
-      const res = await fetch("/api/frankie/planter/commands", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: "ota_update", device_id: selectedDevice }),
-      });
-      if (!res.ok) throw new Error("Failed to send command");
-      setMsg("OTA update sent — planter will apply within 30 s");
+      const results = await Promise.all(
+        otaTargets.map(deviceId =>
+          fetch("/api/frankie/planter/commands", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command: "ota_update", device_id: deviceId }),
+          }).then(r => ({ deviceId, ok: r.ok }))
+        )
+      );
+      const failed = results.filter(r => !r.ok);
+      if (failed.length === 0) {
+        setMsg(`OTA sent to ${otaTargets.length} board${otaTargets.length > 1 ? "s" : ""} — will apply within 30s`);
+      } else {
+        setMsg(`Sent to ${results.length - failed.length}/${results.length} boards — ${failed.length} failed`);
+      }
     } catch {
       setMsg("Error sending OTA command");
     } finally { setPushing(false); }
@@ -149,28 +167,39 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
       {open && (
         <div className="px-6 pb-6">
 
-          {/* Device selector */}
+          {/* Device selector — checkboxes so you can push to multiple boards at once */}
           {devices.length > 1 && (
-            <div className="mb-4 flex items-center gap-3">
-              <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Board</span>
-              <div className="flex flex-wrap gap-2">
+            <div className="mb-4">
+              <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-2">
+                OTA Target Boards
+              </span>
+              <div className="flex flex-wrap gap-3">
                 {devices.map(d => {
-                  const label = d.name ?? (d.id === "default" ? "Default" : d.id);
+                  const label = d.name ?? d.id.charAt(0).toUpperCase() + d.id.slice(1);
+                  const checked = otaTargets.includes(d.id);
                   return (
-                    <button
+                    <label
                       key={d.id}
-                      onClick={() => setSelectedDevice(d.id)}
-                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                        selectedDevice === d.id
-                          ? "bg-green-600 text-white"
-                          : "bg-white border border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-700"
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer border transition-colors ${
+                        checked
+                          ? "bg-green-600 text-white border-green-600"
+                          : "bg-white text-gray-600 border-gray-200 hover:border-green-400 hover:text-green-700"
                       }`}
                     >
-                      {label}
-                    </button>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleTarget(d.id)}
+                        className="sr-only"
+                      />
+                      {checked ? "✓ " : ""}{label}
+                    </label>
                   );
                 })}
               </div>
+              {otaTargets.length === 0 && (
+                <p className="text-xs text-yellow-600 mt-1">Select at least one board to push OTA.</p>
+              )}
             </div>
           )}
 
@@ -190,11 +219,11 @@ export default function PlanterFirmwareCard({ canManage }: { canManage: boolean 
               </div>
               <button
                 onClick={pushOTA}
-                disabled={pushing || !esp32Online}
-                title={!esp32Online ? "Planter is offline" : "Push OTA update to planter"}
+                disabled={pushing || otaTargets.length === 0}
+                title={otaTargets.length === 0 ? "Select at least one board" : `Push OTA to ${otaTargets.length} board${otaTargets.length > 1 ? "s" : ""}`}
                 className="ml-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {pushing ? "Sending..." : "Push to Planter"}
+                {pushing ? "Sending..." : otaTargets.length > 1 ? `Push to ${otaTargets.length} Boards` : "Push to Planter"}
               </button>
             </div>
           )}
