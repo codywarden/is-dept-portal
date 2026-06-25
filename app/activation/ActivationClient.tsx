@@ -3,7 +3,7 @@
 
 type Role = "admin" | "manager" | "user" | "guest";
 
-export default function ActivationClient({ role }: { role: Role }) {
+export default function ActivationClient({ role, canApproveAbsorption }: { role: Role; canApproveAbsorption?: boolean }) {
   return (
     <div style={{ minHeight: "100vh", background: "#d7d9cc", padding: 32, color: "#000" }}>
       <header style={{ marginBottom: 18 }}>
@@ -57,6 +57,13 @@ export default function ActivationClient({ role }: { role: Role }) {
             title="Change Location"
             href="/activation/change-location"
             description="Track and manage location changes for cost items."
+          />
+        )}
+        {canApproveAbsorption && (
+          <Card
+            title="Cost Absorptions"
+            href="/activation/cost-absorptions"
+            description="Review, approve, deny, and print cost absorption override requests."
           />
         )}
       </section>

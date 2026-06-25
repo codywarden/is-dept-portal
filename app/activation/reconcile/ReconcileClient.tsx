@@ -47,9 +47,23 @@ type LocationChangeRequest = {
   created_at: string;
 };
 
+type CostAbsorptionOverride = {
+  id: string;
+  cost_item_id: string;
+  override_person_name: string;
+  reason: string;
+  amount: number;
+  status: "pending" | "approved" | "denied" | "cancelled";
+  requested_by_email: string | null;
+  reviewed_by_email: string | null;
+  denial_reason: string | null;
+  synthetic_sold_item_id: string | null;
+  created_at: string;
+};
+
 const SOLD_TO_CHANGE_LOCATION_KEY = "sold_to_change_location_enabled";
 
-export default function ReconcileClient({ role, canAutoReconcile }: { role: Role; canAutoReconcile?: boolean }) {
+export default function ReconcileClient({ role, canAutoReconcile, userName }: { role: Role; canAutoReconcile?: boolean; userName?: string }) {
   const [costItems, setCostItems] = useState<CostItem[]>([]);
   const [soldItems, setSoldItems] = useState<SoldItem[]>([]);
   const [reconcliedItemLinks, setReconcliedItemLinks] = useState<Record<string, string>>({});
@@ -69,6 +83,14 @@ export default function ReconcileClient({ role, canAutoReconcile }: { role: Role
     soldItem: SoldItem;
   } | null>(null);
   const [autoReconciling, setAutoReconciling] = useState(false);
+
+  // Cost absorption override state
+  const [absorptionOverrides, setAbsorptionOverrides] = useState<Record<string, CostAbsorptionOverride>>({});
+  const [showAbsorptionModal, setShowAbsorptionModal] = useState(false);
+  const [absorptionCostItem, setAbsorptionCostItem] = useState<CostItem | null>(null);
+  const [absorptionPersonName, setAbsorptionPersonName] = useState("");
+  const [absorptionReason, setAbsorptionReason] = useState("");
+  const [absorptionSubmitting, setAbsorptionSubmitting] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -139,6 +161,27 @@ export default function ReconcileClient({ role, canAutoReconcile }: { role: Role
         setSoldToChangeLocationEnabled(row?.value === "true");
       } catch {
         // ignore
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/activation/subscriptions/cost-absorption-overrides");
+        if (!res.ok) return;
+        const j = await res.json();
+        const overrides = (j?.overrides ?? []) as CostAbsorptionOverride[];
+        // Keep the most recent non-cancelled override per cost item
+        const byItemId: Record<string, CostAbsorptionOverride> = {};
+        [...overrides].reverse().forEach((o) => {
+          if (o.status !== "cancelled") {
+            byItemId[o.cost_item_id] = o;
+          }
+        });
+        setAbsorptionOverrides(byItemId);
+      } catch (err) {
+        console.error(err);
       }
     })();
   }, []);
@@ -308,6 +351,40 @@ export default function ReconcileClient({ role, canAutoReconcile }: { role: Role
       setMsg("Auto Reconcile failed");
     } finally {
       setAutoReconciling(false);
+    }
+  }
+
+  async function submitAbsorptionOverride() {
+    if (!absorptionCostItem || !absorptionPersonName.trim() || !absorptionReason.trim()) return;
+    setAbsorptionSubmitting(true);
+    try {
+      const res = await fetch("/api/activation/subscriptions/cost-absorption-overrides", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          costItemId: absorptionCostItem.id,
+          overridePersonName: absorptionPersonName.trim(),
+          reason: absorptionReason.trim(),
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setMsg(j?.error ?? "Failed to submit override");
+        return;
+      }
+      const override = j.override as CostAbsorptionOverride;
+      setAbsorptionOverrides((prev) => ({ ...prev, [override.cost_item_id]: override }));
+      setShowAbsorptionModal(false);
+      setAbsorptionCostItem(null);
+      setAbsorptionPersonName("");
+      setAbsorptionReason("");
+      setMsg("Override submitted — pending approval.");
+    } catch (err) {
+      console.error(err);
+      setMsg("Failed to submit override");
+    } finally {
+      setAbsorptionSubmitting(false);
     }
   }
 
@@ -695,27 +772,142 @@ export default function ReconcileClient({ role, canAutoReconcile }: { role: Role
                     AUTO REC.
                   </div>
                 )}
-                {!isReconclied && (
-                  (() => {
-                    const selectedSoldId = reconcliedItemLinks[item.id] || "";
-                    const selectedSoldItem = notReconcliedSoldItems.find((sold) => sold.id === selectedSoldId);
-                    const selectedLocationsMismatch =
-                      Boolean(selectedSoldItem) &&
-                      normalizeLocationForCompare(item.location) !==
-                        normalizeLocationForCompare(selectedSoldItem?.location);
+                {!isReconclied && (() => {
+                  const absorptionOverride = absorptionOverrides[item.id];
+                  const hasPendingOverride = absorptionOverride?.status === "pending";
 
+                  // Show override status badge when there's an active override
+                  if (absorptionOverride && absorptionOverride.status !== "denied") {
                     return (
-                      <>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "end" }}>
-                          <select
-                            value={selectedSoldId}
-                            onChange={(e) => {
-                              const nextSoldId = e.target.value;
+                      <div style={{ marginTop: 8 }}>
+                        {absorptionOverride.status === "pending" && (
+                          <div style={{
+                            padding: "10px 12px",
+                            borderRadius: 8,
+                            background: "#fffbeb",
+                            border: "1px solid rgba(245,158,11,0.4)",
+                          }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: "#92400e", marginBottom: 4 }}>
+                              ⏳ Absorption Override — Pending Approval
+                            </div>
+                            <div style={{ fontSize: 12, color: "#78350f", marginBottom: 2 }}>
+                              <strong>Authorized by:</strong> {absorptionOverride.override_person_name}
+                            </div>
+                            <div style={{ fontSize: 12, color: "#78350f", marginBottom: 2 }}>
+                              <strong>Reason:</strong> {absorptionOverride.reason}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#92400e" }}>
+                              Submitted by {absorptionOverride.requested_by_email ?? "unknown"}
+                            </div>
+                          </div>
+                        )}
+                        {absorptionOverride.status === "approved" && (
+                          <div style={{
+                            padding: "8px 12px",
+                            borderRadius: 8,
+                            background: "#f0fdf4",
+                            border: "1px solid rgba(16,185,129,0.35)",
+                            fontSize: 12,
+                            color: "#065f46",
+                            fontWeight: 700,
+                          }}>
+                            ✓ Cost Absorbed — Approved by {absorptionOverride.reviewed_by_email ?? "unknown"}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // Normal reconcile dropdown (also shown after a denial so they can retry)
+                  const selectedSoldId = reconcliedItemLinks[item.id] || "";
+                  const selectedSoldItem = notReconcliedSoldItems.find((sold) => sold.id === selectedSoldId);
+                  const selectedLocationsMismatch =
+                    Boolean(selectedSoldItem) &&
+                    normalizeLocationForCompare(item.location) !==
+                      normalizeLocationForCompare(selectedSoldItem?.location);
+
+                  return (
+                    <>
+                      {absorptionOverride?.status === "denied" && (
+                        <div style={{
+                          marginBottom: 8,
+                          padding: "8px 10px",
+                          borderRadius: 8,
+                          background: "#fef2f2",
+                          border: "1px solid rgba(220,38,38,0.3)",
+                          fontSize: 12,
+                          color: "#991b1b",
+                          fontWeight: 700,
+                        }}>
+                          ✕ Override denied by {absorptionOverride.reviewed_by_email ?? "unknown"}
+                          {absorptionOverride.denial_reason && (
+                            <span style={{ fontWeight: 400 }}> — {absorptionOverride.denial_reason}</span>
+                          )}
+                        </div>
+                      )}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "end" }}>
+                        <select
+                          value={selectedSoldId}
+                          onChange={(e) => {
+                            const nextSoldId = e.target.value;
+
+                            if (nextSoldId === "__override__") {
+                              setAbsorptionCostItem(item);
+                              setAbsorptionPersonName(userName ?? "");
+                              setAbsorptionReason("");
+                              setShowAbsorptionModal(true);
+                              // Reset the dropdown back to blank
+                              setReconcliedItemLinks((prev) => ({ ...prev, [item.id]: "" }));
+                              return;
+                            }
+
+                            const selectedInAnotherCard = Object.entries(reconcliedItemLinks).some(
+                              ([otherCostId, linkedSoldId]) =>
+                                otherCostId !== item.id &&
+                                linkedSoldId === nextSoldId &&
+                                Boolean(nextSoldId)
+                            );
+
+                            if (selectedInAnotherCard) {
+                              setMsg("That retail item is already selected in another cost card.");
+                              return;
+                            }
+
+                            setReconcliedItemLinks((prev) => ({ ...prev, [item.id]: nextSoldId }));
+                          }}
+                          style={{
+                            padding: 8,
+                            borderRadius: 6,
+                            border: "1px solid rgba(0,0,0,0.15)",
+                            background: "#fff",
+                            fontSize: 13,
+                            fontWeight: 600,
+                          }}
+                        >
+                          <option value="">Reconclied to sold item…</option>
+                          <option value="__override__">— Manual Override (Absorb Cost) —</option>
+                          {notReconcliedSoldItems.map((sold) => {
+                            const selectedInAnotherCard = Object.entries(reconcliedItemLinks).some(
+                              ([otherCostId, linkedSoldId]) =>
+                                otherCostId !== item.id && linkedSoldId === sold.id
+                            );
+
+                            return (
+                              <option key={sold.id} value={sold.id} disabled={selectedInAnotherCard}>
+                                {sold.customer_name || "Unknown"} - {sold.item_number || "No Item #"} - ${sold.retail_price?.toFixed(2) ?? "0.00"}
+                                {selectedInAnotherCard ? " (selected in another card)" : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <button
+                          className="btn-primary btn-sm"
+                          onClick={async () => {
+                            const soldId = reconcliedItemLinks[item.id];
+                            if (soldId && soldId !== "__override__") {
                               const selectedInAnotherCard = Object.entries(reconcliedItemLinks).some(
                                 ([otherCostId, linkedSoldId]) =>
-                                  otherCostId !== item.id &&
-                                  linkedSoldId === nextSoldId &&
-                                  Boolean(nextSoldId)
+                                  otherCostId !== item.id && linkedSoldId === soldId
                               );
 
                               if (selectedInAnotherCard) {
@@ -723,79 +915,35 @@ export default function ReconcileClient({ role, canAutoReconcile }: { role: Role
                                 return;
                               }
 
-                              setReconcliedItemLinks((prev) => ({ ...prev, [item.id]: nextSoldId }));
-                            }}
-                            style={{
-                              padding: 8,
-                              borderRadius: 6,
-                              border: "1px solid rgba(0,0,0,0.15)",
-                              background: "#fff",
-                              fontSize: 13,
-                              fontWeight: 600,
-                            }}
-                          >
-                            <option value="">Reconclied to sold item…</option>
-                            {notReconcliedSoldItems.map((sold) => {
-                              const selectedInAnotherCard = Object.entries(reconcliedItemLinks).some(
-                                ([otherCostId, linkedSoldId]) =>
-                                  otherCostId !== item.id && linkedSoldId === sold.id
-                              );
+                              await handleReconcliedSaveWithLocationCheck(item, soldId);
+                            }
+                          }}
+                          disabled={loading || !reconcliedItemLinks[item.id] || reconcliedItemLinks[item.id] === "__override__"}
+                          style={{ fontSize: 13 }}
+                        >
+                          Save
+                        </button>
+                      </div>
 
-                              return (
-                                <option key={sold.id} value={sold.id} disabled={selectedInAnotherCard}>
-                                  {sold.customer_name || "Unknown"} - {sold.item_number || "No Item #"} - ${sold.retail_price?.toFixed(2) ?? "0.00"}
-                                  {selectedInAnotherCard ? " (selected in another card)" : ""}
-                                </option>
-                              );
-                            })}
-                          </select>
-                          <button
-                            className="btn-primary btn-sm"
-                            onClick={async () => {
-                              const soldId = reconcliedItemLinks[item.id];
-                              if (soldId) {
-                                const selectedInAnotherCard = Object.entries(reconcliedItemLinks).some(
-                                  ([otherCostId, linkedSoldId]) =>
-                                    otherCostId !== item.id && linkedSoldId === soldId
-                                );
-
-                                if (selectedInAnotherCard) {
-                                  setMsg("That retail item is already selected in another cost card.");
-                                  return;
-                                }
-
-                                await handleReconcliedSaveWithLocationCheck(item, soldId);
-                              }
-                            }}
-                            disabled={loading || !reconcliedItemLinks[item.id]}
-                            style={{
-                              fontSize: 13,
-                            }}
-                          >
-                            Save
-                          </button>
+                      {selectedLocationsMismatch && (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            background: "#fffbeb",
+                            border: "1px solid rgba(245,158,11,0.35)",
+                            color: "#92400e",
+                            fontSize: 12,
+                            fontWeight: 800,
+                          }}
+                        >
+                          Location mismatch: Cost is {item.location || "Unknown"}, Sold To is {selectedSoldItem?.location || "Unknown"}.
                         </div>
-
-                        {selectedLocationsMismatch && (
-                          <div
-                            style={{
-                              marginTop: 8,
-                              padding: "8px 10px",
-                              borderRadius: 8,
-                              background: "#fffbeb",
-                              border: "1px solid rgba(245,158,11,0.35)",
-                              color: "#92400e",
-                              fontSize: 12,
-                              fontWeight: 800,
-                            }}
-                          >
-                            Location mismatch: Cost is {item.location || "Unknown"}, Sold To is {selectedSoldItem?.location || "Unknown"}.
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()
-                )}
+                      )}
+                    </>
+                  );
+                })()}
                 {isReconclied && role === "admin" && (
                   <button
                     className="btn-danger btn-sm"
@@ -1003,6 +1151,136 @@ export default function ReconcileClient({ role, canAutoReconcile }: { role: Role
           </div>
         </div>
       </div>
+
+      {/* Cost Absorption Override — Create Modal */}
+      {showAbsorptionModal && absorptionCostItem && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1200,
+          }}
+          onClick={() => {
+            if (absorptionSubmitting) return;
+            setShowAbsorptionModal(false);
+            setAbsorptionCostItem(null);
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              padding: 24,
+              width: "min(480px, 94vw)",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 6, color: "#111827" }}>
+              Manual Override — Absorb Cost
+            </h2>
+            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+              This cost will be absorbed internally. An admin or manager must approve before it reconciles.
+            </div>
+
+            {/* Cost item summary */}
+            <div style={{
+              background: "#f9fafb",
+              border: "1px solid rgba(0,0,0,0.12)",
+              borderRadius: 8,
+              padding: 10,
+              marginBottom: 16,
+              fontSize: 13,
+              color: "#111827",
+            }}>
+              <div style={{ fontWeight: 800, marginBottom: 2 }}>{absorptionCostItem.customer_name || "Unknown Customer"}</div>
+              <div style={{ color: "#6b7280" }}>
+                {absorptionCostItem.item_number || "—"} · {absorptionCostItem.serial_number || "—"}
+              </div>
+              <div style={{ fontWeight: 800, color: "#dc2626", marginTop: 4 }}>
+                ${absorptionCostItem.amount?.toFixed(2) ?? "0.00"}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#111827", marginBottom: 6 }}>
+                Authorized by
+              </label>
+              <div style={{
+                padding: "8px 10px",
+                borderRadius: 6,
+                border: "1px solid rgba(0,0,0,0.12)",
+                background: "#f3f4f6",
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#374151",
+              }}>
+                {absorptionPersonName || "—"}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#111827", marginBottom: 6 }}>
+                Reason for absorbing cost <span style={{ color: "#dc2626" }}>*</span>
+              </label>
+              <textarea
+                value={absorptionReason}
+                onChange={(e) => setAbsorptionReason(e.target.value)}
+                placeholder="Explain why this cost is being absorbed…"
+                rows={3}
+                disabled={absorptionSubmitting}
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  borderRadius: 6,
+                  border: "1px solid rgba(0,0,0,0.2)",
+                  fontSize: 13,
+                  resize: "vertical",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  setShowAbsorptionModal(false);
+                  setAbsorptionCostItem(null);
+                }}
+                disabled={absorptionSubmitting}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(0,0,0,0.15)",
+                  background: "#e5e7eb",
+                  fontWeight: 700,
+                  cursor: absorptionSubmitting ? "not-allowed" : "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-primary"
+                onClick={submitAbsorptionOverride}
+                disabled={absorptionSubmitting || !absorptionPersonName.trim() || !absorptionReason.trim()}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  fontWeight: 800,
+                  cursor: absorptionSubmitting || !absorptionPersonName.trim() || !absorptionReason.trim() ? "not-allowed" : "pointer",
+                }}
+              >
+                {absorptionSubmitting ? "Submitting…" : "Submit for Approval"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Location Selection Modal */}
       {showLocationModal && selectedItemForLocation && (

@@ -9,12 +9,13 @@ export default async function ReconcilePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("page_permissions")
+    .select("page_permissions, first_name, last_name")
     .eq("id", user.id)
     .single();
 
   const perms = (profile?.page_permissions ?? {}) as Record<string, boolean>;
   const canAutoReconcile = role === "admin" || perms["activation/auto-reconcile"] === true;
+  const userName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || user.email || "";
 
-  return <ReconcileClient role={role} canAutoReconcile={canAutoReconcile} />;
+  return <ReconcileClient role={role} canAutoReconcile={canAutoReconcile} userName={userName} />;
 }

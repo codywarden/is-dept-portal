@@ -332,6 +332,7 @@ declare
   truncate_list text := '';
   core_tables text[] := array[
     'sa_admin_action_logs',
+    'sa_cost_absorption_overrides',
     'sa_location_change_print_files',
     'sa_location_change_requests',
     'sa_subscription_cost_items',

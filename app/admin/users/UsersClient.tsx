@@ -91,8 +91,15 @@ const PAGE_GROUPS: PageGroup[] = [
       { key: "activation/cost-account", label: "Cost Account" },
       { key: "activation/location-summary", label: "Location Summary" },
       { key: "activation/change-location", label: "Change Location" },
-      { key: "activation/reconcile", label: "Reconcile" },
+      {
+        key: "activation/reconcile",
+        label: "Reconcile",
+        children: [
+          { key: "activation/reconcile-approve", label: "Approve/Deny Cost Absorption Overrides" },
+        ],
+      },
       { key: "activation/auto-reconcile", label: "Auto Reconcile" },
+      { key: "activation/cost-absorptions", label: "Cost Absorptions" },
       { key: "activation/check", label: "Business System Numbers" },
     ],
   },
