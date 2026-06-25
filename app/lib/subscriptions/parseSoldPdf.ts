@@ -238,8 +238,12 @@ function findCustomerFromBlock(lines: string[], label: string) {
 function findCustomerAfterLabel(lines: string[], label: RegExp) {
   for (let i = 0; i < lines.length; i += 1) {
     if (label.test(lines[i])) {
-      const next = findNextNonEmpty(lines, i + 1);
-      if (next) return next;
+      for (let j = i + 1; j < Math.min(lines.length, i + 6); j++) {
+        const value = lines[j]?.trim();
+        if (!value) continue;
+        if (/^\d+$/.test(value)) continue; // skip bare account numbers
+        return value;
+      }
     }
   }
   return null;
